@@ -61,6 +61,16 @@ class OutputtablePrimitive {
   }
 }
 
+interface RenderableType {
+  render(time: number): void;
+}
 
-export type { Vector4Params }
+type SceneType = {
+  setGLContext: (gl: WebGL2RenderingContext) => void,
+  buildCameras: () => void,
+  buildObjects: () => void,
+  updateObjects: (time: number) => void,
+  renderObjs: RenderableType[],
+}
+export type { Vector4Params, RenderableType, SceneType }
 export { Vector4, OutputtablePrimitive }

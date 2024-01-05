@@ -2,7 +2,7 @@ import vs_Shapes from "./Shapes.vert?raw";
 import fs_Shapes from "./Shapes.frag?raw";
 import * as twgl from "twgl.js";
 import { Outputs } from "../output/Outputs";
-import { OutputtablePrimitive, Vector4 } from "../utils/baseTypes";
+import { OutputtablePrimitive, RenderableType, Vector4 } from "../utils/baseTypes";
 import {
   DefaultLookMatricesHolder,
   LookMatricesHolder,
@@ -34,7 +34,7 @@ const defaultShapesParameters: ShapesParameters = {
 const disableCenterVec3 = [1.0, 1.0, 1.0];
 const enableCenterVec3 = [0.0, 0.0, 1.0];
 
-class Shapes extends OutputtablePrimitive implements TransformableModel {
+class Shapes extends OutputtablePrimitive implements TransformableModel, RenderableType {
   private gl: WebGL2RenderingContext;
   private programInfo: twgl.ProgramInfo;
   private bufferInfo: twgl.BufferInfo;
