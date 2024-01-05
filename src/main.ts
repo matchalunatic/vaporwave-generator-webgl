@@ -90,23 +90,6 @@ function main() {
   const startRender = (gl: WebGL2RenderingContext): void => {
     const outputs = Outputs.getOutputs(gl);
     setupEnvironment(gl);
-
-    /*const render = (time: number): void => {
-      twgl.resizeCanvasToDisplaySize(canvas);
-      gl.viewport(0, 0, canvas.width, canvas.height);
-      AppState.appHeight = canvas.height;
-      AppState.appWidth = canvas.width;
-
-      if (outputs.push(null)) {
-        outputs.render();
-      } else {
-        throw Error("Cannot switch to main render buffer");
-      }
-      outputs.wrapRender();
-      requestAnimationFrame(render); // retrigger
-    };
-    requestAnimationFrame(render);
-    */
   };
   
     if (!gl) {

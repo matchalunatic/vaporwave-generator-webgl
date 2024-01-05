@@ -30,12 +30,12 @@ void main() {
       myOutputColor = u_yBorderColor;
    }
    else if (!inSpace(v_texcoord.x) || !inSpace(v_texcoord.y)) {
-      // discard;
-      myOutputColor = vec4(.1, .5, 0.5, .2); // should discard actually
+      discard;
+      // myOutputColor = vec4(.1, .5, 0.5, .2); // should discard actually
    }
    else if (myOutputColor.a == 0.0) {
       discard;
    }
-   myOutputColor.r += 0.1;
+   // myOutputColor.r += 0.1;
    // myOutputColor.a = 0.5;
 }

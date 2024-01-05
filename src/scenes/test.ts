@@ -1,6 +1,6 @@
 import { Shapes } from "../prims/Shapes";
 import { RenderableType, SceneType } from "../utils/baseTypes"
-import { createCamera, createOrthographicCamera, createPerspectiveCamera } from "../utils/gl";
+import { createCamera, createOrthographicCamera, createPerspectiveCamera, getCamera } from "../utils/gl";
 import { Outputs } from "../output/Outputs";
 import * as twgl from "twgl.js"
 import { pickRandomElement } from "../utils/misc";
@@ -19,7 +19,7 @@ const buildObjects = (): void => {
         shapeCount -= 1;
         sidesCount = Math.floor(Math.random() * 9 + 3)
         let s = new Shapes(glContext, {
-            fillColor: pickRandomColor(),
+            fillColor: pickRandomColor().alpha(0.3),
         });
         s.setCamera('identity');
         s.setSideCount(sidesCount);
@@ -147,13 +147,32 @@ const buildCameras = (): void => {
             fov: 90,
         }
     )
-    cameras.push('front-perspective', 'left-perspective', 'right-perspective', 'top-perspective', 'bottom-perspective');
-    // cameras.push('top-perspective');
+
+    createPerspectiveCamera(
+        "mobile-perspective",
+        twgl.v3.create(0, 0, -3),
+        twgl.v3.create(0, 0, 0),
+        twgl.v3.create(0, 1, 0),
+        {
+            aspect: 1,
+            far: 1000,
+            near: 0.1,
+            fov: 90,
+        }
+    )
+    cameras.push('front-perspective', 'left-perspective', 'right-perspective', 'top-perspective', 'bottom-perspective', 'mobile-perspective');
+    // cameras.push('mobile-perspective');
 }
 
 let counter = 0
 let counterRefresh = 0;
 const updateObjects = (time: number): void => {
+    const persp = getCamera('mobile-perspective');
+    twgl.m4.axisRotate(persp!.u_camera, twgl.v3.create(0, 1, 0), Math.PI / 180 / 3, persp!.u_camera);
+    if (time < counter) {
+        return;
+    }
+
     if (time < counterRefresh) {
         return;
     }
@@ -163,13 +182,8 @@ const updateObjects = (time: number): void => {
         let sidesCount = Math.floor(Math.random() * 5 + 3)
         s.setSideCount(sidesCount);
     }
-
-    if (time < counter) {
-        return;
-    }
     counter += 1000;
     const outputs = Outputs.getOutputs(glContext);
-    outputs.debug();
     const nextCam = pickRandomElement<string>(cameras);
     outputs.setCamera(0, nextCam);
     console.log(`Camera: ${nextCam}`)
