@@ -10,6 +10,7 @@ import { Outputs } from "../output/Outputs";
 import * as twgl from "twgl.js";
 import { pickRandomElement } from "../utils/misc";
 import { pickRandomColor } from "../utils/colors";
+import { PipelineGeometry, addPolygonToPipelineGeometry, addStretchCoordinatesToPipelineGeometry, addWiggleVertexToPipelineGeometry } from "../prims/PipelineGeometry";
 const renderObjs: RenderableType[] = [];
 const cameras: string[] = [];
 let glContext: WebGL2RenderingContext;
@@ -18,83 +19,25 @@ const setGlContext = (gl: WebGL2RenderingContext): void => {
   glContext = gl;
 };
 const buildObjects = (): void => {
-  let shapeCount: number = 4;
+  let shapeCount: number = 1;
   let sidesCount: number = 0;
   while (shapeCount > 0) {
     shapeCount -= 1;
     sidesCount = Math.floor(Math.random() * 9 + 3);
-    let s = new Shapes(glContext, {
-      fillColor: pickRandomColor().alpha(0.3),
-    });
-    s.setCamera("identity");
-    s.setSideCount(sidesCount);
-    s.setOutput(0);
-    renderObjs.push(s);
+    let pgem =  new PipelineGeometry({gl: glContext})
+    pgem.setCamera("identity");
+    pgem.setOutput(0);
+    addPolygonToPipelineGeometry(pgem, sidesCount, true, pickRandomColor(), pickRandomColor(), Math.random() / 100.0)
+    // addStretchCoordinatesToPipelineGeometry(pgem, twgl.v3.create(1, 1, 1));
+    addWiggleVertexToPipelineGeometry(pgem, -0.5, 0.01);
+    renderObjs.push(pgem);
   }
 };
 
 const buildCameras = (): void => {
-  /* createOrthographicCamera(
-        "front-ortho",
-        {
-            lateralHalfSpan: 1,
-            verticalHalfSpan: 1,
-            lateralOffset: 0,
-            verticalOffset: 0,
-            near: 0.1,
-            far: 100,
-        },
-        twgl.v3.create(0, 0, -1)
-    );
-    createOrthographicCamera(
-        "left-ortho",
-        {
-            lateralHalfSpan: 1,
-            verticalHalfSpan: 1,
-            lateralOffset: 0,
-            verticalOffset: 0,
-            near: 0.1,
-            far: 100,
-        },
-        twgl.v3.create(-1, 0, 0),
-        twgl.v3.create(0, 1, 0),
-        -90,
-        true,
-    );  
-    createOrthographicCamera(
-        "right-ortho",
-        {
-            lateralHalfSpan: 1,
-            verticalHalfSpan: 1,
-            lateralOffset: 0,
-            verticalOffset: 0,
-            near: 0.1,
-            far: 100,
-        },
-        twgl.v3.create(1, 0, 0),
-        twgl.v3.create(0, 1, 0),
-        -90,
-        true,
-    );
-    createOrthographicCamera(
-        "top-ortho",
-        {
-            lateralHalfSpan: 1,
-            verticalHalfSpan: 1,
-            lateralOffset: 1,
-            verticalOffset: 1,
-            near: 0.1,
-            far: 2000,
-        },
-        twgl.v3.create(0, 2, 0),
-        twgl.v3.create(0, 0, 1),
-        -90,
-        true,
-    );
-    */
   createPerspectiveCamera(
     "front-perspective",
-    twgl.v3.create(0, 0, -3),
+    twgl.v3.create(0, 0, -1),
     twgl.v3.create(0, 0, 0),
     twgl.v3.create(0, 1, 0),
     {
@@ -106,7 +49,7 @@ const buildCameras = (): void => {
   );
   createPerspectiveCamera(
     "left-perspective",
-    twgl.v3.create(-0.6, 0, -3),
+    twgl.v3.create(-0.6, 0, -1),
     twgl.v3.create(0, 0, 0),
     twgl.v3.create(0, 1, 0),
     {
@@ -130,7 +73,7 @@ const buildCameras = (): void => {
   );
   createPerspectiveCamera(
     "top-perspective",
-    twgl.v3.create(0, 1, -3),
+    twgl.v3.create(0, 1, -1),
     twgl.v3.create(0, 0, 0),
     twgl.v3.create(0, 0, -1),
     {
@@ -142,7 +85,7 @@ const buildCameras = (): void => {
   );
   createPerspectiveCamera(
     "bottom-perspective",
-    twgl.v3.create(0, -1, -3),
+    twgl.v3.create(0, -1, -1),
     twgl.v3.create(0, 0, 0),
     twgl.v3.create(0, 0, 1),
     {
@@ -155,7 +98,7 @@ const buildCameras = (): void => {
 
   createPerspectiveCamera(
     "mobile-perspective",
-    twgl.v3.create(0, 0, -3),
+    twgl.v3.create(0, 0, -1),
     twgl.v3.create(0, 0, 0),
     twgl.v3.create(0, 1, 0),
     {
@@ -171,9 +114,10 @@ const buildCameras = (): void => {
 
 let counter = 0;
 let counterRefresh = 0;
+let rotateDirection = 1;
 const updateObjects = (time: number): void => {
   const persp = getCamera("mobile-perspective");
-  twgl.m4.rotateY(persp!.u_camera,  Math.PI / 180 / 4, persp!.u_camera);
+  twgl.m4.rotateY(persp!.u_camera,  rotateDirection * Math.PI / 180 / 30, persp!.u_camera);
   // console.log(persp?.u_camera);
   /*const t = time / 1000;
   persp!.u_camera = twgl.m4.inverse(
@@ -183,6 +127,33 @@ const updateObjects = (time: number): void => {
       twgl.v3.create(0, 1, 0)
     )
   );*/
+  for (let obj of renderObjs) {
+    let s = obj as PipelineGeometry;
+    // s.fsCalls[0].arg1[0] = Math.random() / 20.0;
+    // deform object
+    const fact = 1 / (1000 * 3.14);
+    let x = Math.sin(time * fact);
+    let y = Math.cos(time * fact) * Math.sin(time * fact);
+    let z = 1;
+    if (x < 0.01 && x > 0) {
+      x = 0.01
+    } else if (x > -0.01 && x < 0) {
+      x = -0.01;
+    }
+    if (y < 0.01 && y > 0) {
+      y = 0.01
+    } else if (y > -0.01 && y < 0) {
+      y = -0.01;
+    }
+    if (z < 0.01 && z > 0) {
+      z = 0.01
+    } else if (z > -0.01 && z < 0) {
+      z = -0.01;
+    }
+    // s.vsCalls[1].arg1[0] = x
+    // s.vsCalls[1].arg1[1] = y
+    // s.vsCalls[1].arg1[2] = z
+  }
   if (time < counter) {
     return;
   }
@@ -190,11 +161,15 @@ const updateObjects = (time: number): void => {
   if (time < counterRefresh) {
     return;
   }
+  let r = Math.random() - 0.5;
+  r = r / Math.abs(r);
+  rotateDirection = r;
   counterRefresh += 150;
   for (let obj of renderObjs) {
-    let s = obj as Shapes;
+    let s = obj as PipelineGeometry;
     let sidesCount = Math.floor(Math.random() * 5 + 3);
-    s.setSideCount(sidesCount);
+    s.vsCalls[0].arg1[0] = sidesCount;
+
   }
   counter += 1000;
   const outputs = Outputs.getOutputs(glContext);

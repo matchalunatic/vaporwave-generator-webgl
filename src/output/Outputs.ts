@@ -4,13 +4,14 @@ import * as twgl from "twgl.js";
 import { Vector4 } from "../utils/baseTypes";
 import {
   LookMatricesHolder,
-  TransformableModel,
   getCamera,
   DefaultLookMatricesHolder,
 } from "../utils/gl";
+import { TransformablePrimitive } from "../utils/baseTypes";
 import { AppState } from "../utils/appState";
 import { AllColors, pickRandomColor } from "../utils/colors";
 import { TransparentZero } from "../utils/colors";
+import { applyMixins } from "../utils/misc";
 let outputInstance: Outputs | null = null;
 
 type valid_fb_non_null =
@@ -60,7 +61,9 @@ const DefaultOutputParameters: RenderParameters = {
 
 // const UNITY_QUAD = [-1, -1, -1, 1, 1, 1, 1, 1, -1, -1, 1, -1];
 const UNITY_QUAD = [
-  -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, 1, -1, -1, -1, -1, 1, -1, -1,
+//  -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, 1, -1, -1, -1, -1, 1, -1, -1,
+  -1, -1, 0, -1, 1, 0, 1, 1, 0, 1, 1, 0, -1, -1, 0, 1, -1, 0,
+
 ];
 
 const positionsArray: twgl.Arrays = {
@@ -250,7 +253,7 @@ class Outputs {
   };
 }
 
-class BufferedOutput implements TransformableModel {
+class BufferedOutput {
   gl: WebGL2RenderingContext;
   params: RenderParameters;
   framebuffer: twgl.FramebufferInfo;
@@ -343,5 +346,7 @@ class BufferedOutput implements TransformableModel {
   };
 }
 
+interface BufferedOutput extends TransformablePrimitive {};
+applyMixins(BufferedOutput, [TransformablePrimitive]);
 export { Outputs };
 export type { valid_fb, valid_fb_non_null, OutputParameters, OutputClient };

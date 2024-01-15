@@ -2,14 +2,14 @@ import vs_Shapes from "./Shapes.vert?raw";
 import fs_Shapes from "./Shapes.frag?raw";
 import * as twgl from "twgl.js";
 import { Outputs } from "../output/Outputs";
-import { OutputtablePrimitive, RenderableType, Vector4 } from "../utils/baseTypes";
+import { CameraSubjectPrimitive, OutputtablePrimitive, RenderableType, TransformablePrimitive, Vector4 } from "../utils/baseTypes";
 import {
   DefaultLookMatricesHolder,
   LookMatricesHolder,
-  TransformableModel,
   getCamera,
 } from "../utils/gl";
 import { AppState } from "../utils/appState";
+import { applyMixins } from "../utils/misc";
 
 interface ShapesParameters {
   initialSidesCount?: number;
@@ -34,7 +34,7 @@ const defaultShapesParameters: ShapesParameters = {
 const disableCenterVec3 = [1.0, 1.0, 1.0];
 const enableCenterVec3 = [0.0, 0.0, 1.0];
 
-class Shapes extends OutputtablePrimitive implements TransformableModel, RenderableType {
+class Shapes {
   private gl: WebGL2RenderingContext;
   private programInfo: twgl.ProgramInfo;
   private bufferInfo: twgl.BufferInfo;
@@ -65,8 +65,10 @@ class Shapes extends OutputtablePrimitive implements TransformableModel, Rendera
   };
 
   constructor(gl: WebGL2RenderingContext, params?: ShapesParameters) {
-    super(Outputs.getOutputs(gl));
     this.gl = gl;
+    if (!this.initializeOutputtable(Outputs.getOutputs(this.gl))) {
+      throw Error("could not initialize output, getting out")
+    }
     if (!params) {
       this.parameters = Object.assign({}, defaultShapesParameters);
     } else {
@@ -87,6 +89,9 @@ class Shapes extends OutputtablePrimitive implements TransformableModel, Rendera
   }
 
   render = (time: number) => {
+    if (!this.outputIsInitialized()) {
+      throw Error("Output is not initialized")
+    }
     this.sidesCount = this.newSidesCount;
     this.gl.useProgram(this.programInfo.program);
     this.outputManager.push(this.output);
@@ -128,5 +133,7 @@ class Shapes extends OutputtablePrimitive implements TransformableModel, Rendera
   };
 }
 
+interface Shapes extends CameraSubjectPrimitive, TransformablePrimitive, OutputtablePrimitive {}
+applyMixins(Shapes, [CameraSubjectPrimitive, TransformablePrimitive, OutputtablePrimitive]);
 export { Shapes };
 export type { ShapesParameters };

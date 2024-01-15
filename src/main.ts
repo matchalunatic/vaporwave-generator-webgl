@@ -9,8 +9,9 @@ import {
   moveCamera,
 } from "./utils/gl";
 import { pickRandomColor } from "./utils/colors";
-import { Scene } from "./scenes/test";
+import { Scene } from "./scenes/test3";
 import { SceneType } from "./utils/baseTypes";
+import { PipelineGeometry } from "./prims/PipelineGeometry";
 const triangleWave = (
   time: number,
   phase: number,
@@ -69,17 +70,20 @@ function main() {
 
   const runScene = (gl: WebGL2RenderingContext, scene: SceneType): void => {
     setupEnvironment(gl);
+    const outputs = Outputs.getOutputs(gl)
     scene.setGLContext(gl);
     scene.buildCameras();
     scene.buildObjects();
-    const outputs = Outputs.getOutputs(gl)
     const animate = (time: number): void => {
       for (let renderable of scene.renderObjs) {
         renderable.render(time);
+        console.log(renderable.render)
       }
       if (outputs.push(null)) {
         outputs.render();
+        outputs.wrapRender();
         outputs.pop();
+
       }
       scene.updateObjects(time);
       requestAnimationFrame(animate);
@@ -96,6 +100,8 @@ function main() {
     throw new Error("Late error starting GL context");
   }
   // startRender(gl);
+  // console.log(" aaah ",new PipelineGeometry({gl: gl}))
+
   runScene(gl, Scene);
 }
 

@@ -7,6 +7,12 @@ type LookMatricesHolder = {
   orthographic: boolean;
   camParams: CameraParameters | null;
 };
+
+const isLookMatricesHolder = (m: any): m is LookMatricesHolder => {
+  console.log("foo", (typeof m))
+  return (typeof m) === "LookMatricesHolder";
+}
+
 type degrees = number;
 
 type CameraParameters = {
@@ -38,11 +44,6 @@ const DefaultOrthographicParameters: OrthographicProjectionParameters = {
   lateralOffset: 0,
   verticalOffset: 0,
 };
-
-interface TransformableModel {
-  u_model: twgl.m4.Mat4;
-  setCamera(cam: LookMatricesHolder): void;
-}
 
 const degToRad = (degrees: number): number => {
   return (degrees / 360.0) * Math.PI * 2;
@@ -238,10 +239,10 @@ export {
   createOrthographicCamera,
   createPerspectiveCamera,
   moveCamera,
+  isLookMatricesHolder
 };
 export type {
   LookMatricesHolder,
   ProjectionParameters,
-  TransformableModel,
   OrthographicProjectionParameters,
 };

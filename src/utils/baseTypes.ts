@@ -1,4 +1,15 @@
 import { Outputs, valid_fb } from "../output/Outputs";
+import { LookMatricesHolder, getCamera, isLookMatricesHolder } from "./gl";
+import * as twgl from "twgl.js";
+
+class WithCapabilities {
+  capabilities: Array<string> = [];
+  addCapabilities(): void {}
+  initialize(..._p: any[]) {
+    this.addCapabilities();
+    console.log("capabilities:", this, this.capabilities);
+  }
+}
 
 interface Vector4Params {
   x?: number;
@@ -33,24 +44,50 @@ class Vector4 {
       this.a = args[3] || 0;
     }
   }
-  toArray = () : number[] => {
+  toArray = (): number[] => {
     return [this.x, this.y, this.z, this.a];
-  }
+  };
 }
 
-class OutputtablePrimitive {
-  output: valid_fb;
-  outputManager: Outputs
+class OutputtablePrimitive extends WithCapabilities {
+  output?: valid_fb;
+  outputManager?: Outputs;
   static objectCount: number = 0;
-  objectId: number;
-  constructor(manager: Outputs) {
+  objectId?: number;
+  outputIsInitialized(): this is {
+    output: valid_fb;
+    outputManager: Outputs;
+    objectId: number;
+  } {
+    return (
+      this.outputManager !== undefined &&
+      this.output !== undefined &&
+      this.objectId !== undefined
+    );
+  }
+  addCapabilities(): void {
+    this.capabilities.push("outputtable");
+  }
+
+  initializeOutputtable(manager: Outputs): this is {
+    output: valid_fb;
+    outputManager: Outputs;
+    objectId: number;
+  } {
     this.output = null;
     this.outputManager = manager;
     this.objectId = OutputtablePrimitive.objectCount;
     OutputtablePrimitive.objectCount += 1;
+    return true;
   }
-  setOutput = (n: valid_fb): void => {
-    console.log(`${this.objectId}: register output ${n} instead of ${this.output}`)
+
+  setOutput(n: valid_fb): void {
+    if (!this.outputIsInitialized()) {
+      throw Error("outputManager is not initialized, will not proceed");
+    }
+    console.log(
+      `${this.objectId}: register output ${n} instead of ${this.output}`
+    );
     if (this.output !== null) {
       this.outputManager.unregisterOutput(this.output);
     }
@@ -60,17 +97,80 @@ class OutputtablePrimitive {
     }
   }
 }
+class CameraSubjectPrimitive extends WithCapabilities {
+  cameraHolder: LookMatricesHolder;
+
+  addCapabilities(): void {
+    this.capabilities.push("camera-able");
+  }
+  constructor(cam: LookMatricesHolder | string | undefined) {
+    const defaultCam = getCamera("default");
+    let chosenCam: LookMatricesHolder | undefined;
+    if (typeof cam === "string") {
+      chosenCam = getCamera(cam);
+    } else if (isLookMatricesHolder(cam)) {
+      chosenCam = cam;
+    } else {
+      chosenCam = defaultCam;
+    }
+    if (chosenCam === undefined) {
+      throw Error(
+        "Could not assign a camera to CameraSubjectPrimitive, not creating it. Ensure a default camera is defined."
+      );
+    }
+    super();
+    this.cameraHolder = chosenCam;
+  }
+  setCamera(cam: LookMatricesHolder | string): boolean {
+    if (typeof cam === "string") {
+      const goodCam = getCamera(cam);
+      if (!goodCam) {
+        throw Error(`tried to set bad camera ${cam} on ${this}`);
+      }
+      this.cameraHolder = goodCam;
+    } else {
+      this.cameraHolder = cam;
+    }
+    return true;
+  }
+}
+
+interface TransformablePrimitive {
+  u_model?: twgl.m4.Mat4;
+  setTransformation(transform: twgl.m4.Mat4): void;
+}
+
+class TransformablePrimitive extends WithCapabilities {
+  u_model?: twgl.m4.Mat4;
+  setTransformation(transform: twgl.m4.Mat4): void {
+    this.u_model = transform;
+  }
+  addCapabilities(): void {
+    this.capabilities.push("transformable");
+  }
+}
 
 interface RenderableType {
   render(time: number): void;
 }
 
 type SceneType = {
-  setGLContext: (gl: WebGL2RenderingContext) => void,
-  buildCameras: () => void,
-  buildObjects: () => void,
-  updateObjects: (time: number) => void,
-  renderObjs: RenderableType[],
-}
-export type { Vector4Params, RenderableType, SceneType }
-export { Vector4, OutputtablePrimitive }
+  setGLContext: (gl: WebGL2RenderingContext) => void;
+  buildCameras: () => void;
+  buildObjects: () => void;
+  updateObjects: (time: number) => void;
+  renderObjs: RenderableType[];
+};
+
+type LengthArray<T, N extends number, R extends T[] = []> = number extends N
+  ? T[]
+  : R["length"] extends N
+  ? R
+  : LengthArray<T, N, [T, ...R]>;
+export type { Vector4Params, RenderableType, SceneType, LengthArray };
+export {
+  Vector4,
+  OutputtablePrimitive,
+  CameraSubjectPrimitive,
+  TransformablePrimitive,
+};
