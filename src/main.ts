@@ -9,7 +9,7 @@ import {
   moveCamera,
 } from "./utils/gl";
 import { pickRandomColor } from "./utils/colors";
-import { Scene } from "./scenes/test3";
+import { Scene } from "./scenes/test2";
 import { SceneType } from "./utils/baseTypes";
 import { PipelineGeometry } from "./prims/PipelineGeometry";
 const triangleWave = (
@@ -77,7 +77,6 @@ function main() {
     const animate = (time: number): void => {
       for (let renderable of scene.renderObjs) {
         renderable.render(time);
-        console.log(renderable.render)
       }
       if (outputs.push(null)) {
         outputs.render();

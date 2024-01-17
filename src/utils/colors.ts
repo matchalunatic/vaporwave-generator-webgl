@@ -1,7 +1,9 @@
-import { Vector4 } from "./baseTypes";
-import { pickRandomElement } from "./misc";
+import { LengthArray, Vector4 } from "./baseTypes";
+import { arrayAbs, pickRandomElement } from "./misc";
+import Cjs from "colorjs.io";
 
 class Color extends Vector4 {
+
   setProp = (p: string, n: number): Color => {
     Object.assign(this, {[p]: n})
     return this;
@@ -22,36 +24,74 @@ class Color extends Vector4 {
   b = (n: number): Color => {
     return this.setProp('z', n);
   }
+
+  static fromArray(a: LengthArray<number, 4>) {
+    return new Color(...a);
+  }
+
+  static fromString(s: string) {
+    return new Cjs(s).srgb;
+  }
+
+  rotate = (l: number, c: number, h: number) => {
+    let col = new Cjs({space: "srgb", coords: [this.x, this.y, this.z], alpha: this.a})
+    col.lch.l += l;
+    col.lch.c += c;
+    col.lch.h += h;
+    console.log("sRGB:", col.srgb);
+    [this.x, this.y, this.z] = arrayAbs(col.srgb);
+  }
+
 } ;
-const Blue = new Color(0, 0, 1, 0.5);
-const BlueViolet = new Color(0.541, 0.169, 0.886, 0.5);
-const Brown = new Color(0.863, 0.078, 0.235, 0.5);
-const Chocolate = new Color(0.863, 0.078, 0.235, 0.5);
-const Crimson = new Color(0.863, 0.078, 0.235, 0.5);
-const Cyan = new Color(0, 1, 1, 0.5);
-const DarkRed = new Color(0.863, 0.078, 0.235, 0.5);
-const DimGray = new Color(0.663, 0.663, 0.663, 0.5);
-const FireBrick = new Color(0.863, 0.078, 0.235, 0.5);
-const Goldenrod = new Color(0.855, 0.647, 0.125, 0.5);
-const Green = new Color(0, 1, 0, 0.5);
-const IndianRed = new Color(0.804, 0.361, 0.361, 0.5);
-const LightCoral = new Color(0.863, 0.078, 0.235, 0.5);
-const Maroon = new Color(0.863, 0.078, 0.235, 0.5);
-const MediumPurple = new Color(0.58, 0, 0.827, 0.5);
-const Orange = new Color(1, 0.584, 0, 0.5);
-const OrangeRed = new Color(1, 0.549, 0, 0.5);
-const Peru = new Color(0.863, 0.078, 0.235, 0.5);
-const Purple = new Color(0.294, 0, 0.51, 0.5);
-const Red = new Color(1, 0, 0, 0.5);
-const RosyBrown = new Color(0.863, 0.078, 0.235, 0.5);
-const SaddleBrown = new Color(0.863, 0.078, 0.235, 0.5);
-const Sienna = new Color(0.863, 0.078, 0.235, 0.5);
-const SkyBlue = new Color(0, 0.584, 1, 0.5);
-const SpringGreen = new Color(0, 1, 0.749, 0.5);
-const WebGray = new Color(0.502, 0.502, 0.502, 0.5);
-const Yellow = new Color(1, 1, 0, 0.5);
-const YellowGreen = new Color(0.749, 1, 0, 0.5);
-const TransparentZero = new Color(0, 0, 0, 0);
+
+class Color2 extends Cjs {
+  static fromRGBA(r: number, g: number, b: number, a: number) {
+    return new Color2({space: "srgb", coords: [r, g, b], alpha: a});
+  }
+
+  static fromArray(a: LengthArray<number, 4>): Color2 {
+    return Color2.fromRGBA(...a);
+  }
+
+  toArray = (): LengthArray<number, 4> => {
+    return [this.srgb[0], this.srgb[1], this.srgb[2], this.alpha]
+  }
+
+  rotate = (l: number, c: number, h: number): void => {
+    this.lch.l += l;
+    this.lch.c += c;
+    this.lch.h += h;
+  }
+}
+const Blue = Color2.fromRGBA(0, 0, 1, 0.5);
+const BlueViolet = Color2.fromRGBA(0.541, 0.169, 0.886, 0.5);
+const Brown = Color2.fromRGBA(0.863, 0.078, 0.235, 0.5);
+const Chocolate = Color2.fromRGBA(0.863, 0.078, 0.235, 0.5);
+const Crimson = Color2.fromRGBA(0.863, 0.078, 0.235, 0.5);
+const Cyan = Color2.fromRGBA(0, 1, 1, 0.5);
+const DarkRed = Color2.fromRGBA(0.863, 0.078, 0.235, 0.5);
+const DimGray = Color2.fromRGBA(0.663, 0.663, 0.663, 0.5);
+const FireBrick = Color2.fromRGBA(0.863, 0.078, 0.235, 0.5);
+const Goldenrod = Color2.fromRGBA(0.855, 0.647, 0.125, 0.5);
+const Green = Color2.fromRGBA(0, 1, 0, 0.5);
+const IndianRed = Color2.fromRGBA(0.804, 0.361, 0.361, 0.5);
+const LightCoral = Color2.fromRGBA(0.863, 0.078, 0.235, 0.5);
+const Maroon = Color2.fromRGBA(0.863, 0.078, 0.235, 0.5);
+const MediumPurple = Color2.fromRGBA(0.58, 0, 0.827, 0.5);
+const Orange = Color2.fromRGBA(1, 0.584, 0, 0.5);
+const OrangeRed = Color2.fromRGBA(1, 0.549, 0, 0.5);
+const Peru = Color2.fromRGBA(0.863, 0.078, 0.235, 0.5);
+const Purple = Color2.fromRGBA(0.294, 0, 0.51, 0.5);
+const Red = Color2.fromRGBA(1, 0, 0, 0.5);
+const RosyBrown = Color2.fromRGBA(0.863, 0.078, 0.235, 0.5);
+const SaddleBrown = Color2.fromRGBA(0.863, 0.078, 0.235, 0.5);
+const Sienna = Color2.fromRGBA(0.863, 0.078, 0.235, 0.5);
+const SkyBlue = Color2.fromRGBA(0, 0.584, 1, 0.5);
+const SpringGreen = Color2.fromRGBA(0, 1, 0.749, 0.5);
+const WebGray = Color2.fromRGBA(0.502, 0.502, 0.502, 0.5);
+const Yellow = Color2.fromRGBA(1, 1, 0, 0.5);
+const YellowGreen = Color2.fromRGBA(0.749, 1, 0, 0.5);
+const TransparentZero = Color2.fromRGBA(0, 0, 0, 0);
 const AllColors = [
   Blue,
   BlueViolet,
@@ -124,4 +164,4 @@ export {
   pickRandomColorFromSet,
 };
 
-export { Color }
+export { Color2 as Color }

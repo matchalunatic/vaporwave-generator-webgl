@@ -233,7 +233,7 @@ function addPolygonToPipelineGeometry(
 ): boolean {
   const fcall_vert: FunctionCall = new FunctionCall({
     f_id: GENERATE_POLYGON,
-    flags: 0b1,
+    flags: renderCenter ? 0b1 : 0b0,
     arg1: [sides],
     arg2: [],
     arg3: [],
@@ -251,7 +251,7 @@ function addPolygonToPipelineGeometry(
     ctx: PipelineGeometry
   ): void => {
     // console.log(ctx.programInfo.uniformSetters)
-    twgl.drawBufferInfo(gl, ctx.bufferInfo, gl.TRIANGLES, sides * 3, 0);
+    twgl.drawBufferInfo(gl, ctx.bufferInfo, gl.TRIANGLES, fcall_vert.arg1[0] * 3, 0);
   };
   let res = true;
   res = res && p.addVSCall(fcall_vert);
@@ -271,7 +271,6 @@ function addStretchCoordinatesToPipelineGeometry(
     arg3: [],
     flags: 0,
   } as unknown as FunctionCall;
-  console.log(fcall_vert);
   return p.addVSCall(fcall_vert);
 }
 
@@ -298,7 +297,6 @@ applyMixins(PipelineGeometry, [
   OutputtablePrimitive,
 ]);
 
-console.log(PipelineGeometry);
 export {
   PipelineGeometry,
   addPolygonToPipelineGeometry,

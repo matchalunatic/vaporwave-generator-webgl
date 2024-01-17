@@ -18,5 +18,21 @@ function applyMixins(derivedCtor: any, constructors: any[]) {
     });
   }
   
-export { pickRandomElement, applyMixins };
+const polarRandom = (amplitude?: number, internalOffset?: number, externalOffset?: number): number => {
+  if (internalOffset === undefined) {
+    internalOffset = 0.0;
+  }
+  if (externalOffset === undefined) {
+    externalOffset = 0.0;
+  }
+  if (amplitude === undefined) {
+    amplitude = 1.0;
+  }
+  return (Math.random() - 0.5 + internalOffset) * amplitude + externalOffset;
+}
+
+const arrayAbs = (ns: number[]): number[] => {
+  return ns.map(Math.abs);
+}
+export { pickRandomElement, applyMixins, polarRandom, arrayAbs };
 

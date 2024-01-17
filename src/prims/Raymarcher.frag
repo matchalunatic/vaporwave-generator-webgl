@@ -128,11 +128,12 @@ vec3 get_normal(vec3 pos) {
     return normal;
 }
 
-vec4 lighting(vec3 light_color, vec3 light_position, vec3 pos, vec3 normal) {
+vec4 diffuse_lighting(vec3 light_color, vec3 light_position, vec3 pos, vec3 normal) {
     vec3 arrow_to_light = normalize(pos - light_position);
     float diffuse_intensity = max(0., dot(normal, arrow_to_light));
     return vec4(light_color * diffuse_intensity, 1.0);
 }
+
 vec4 do_ray_march(vec3 origin, vec3 direction) {
     float totalDistance = 0.;
     float currentDistance = 0.;
@@ -148,7 +149,7 @@ vec4 do_ray_march(vec3 origin, vec3 direction) {
             // hit
             // get the normal vector
             normal = get_normal(pos);
-            vec4 lght = (lighting(vec3(1, 1, 1), sphere1Center, pos, normal) + lighting(vec3(1, 0.5, 0.), sphere2Center, pos, normal)) / 2.;
+            vec4 lght = (diffuse_lighting(vec3(1, 1, 1), sphere1Center, pos, normal) + diffuse_lighting(vec3(1, 0.5, 0.), sphere2Center, pos, normal)) / 2.;
             lght.w = 1.;
             return lght;
         }
