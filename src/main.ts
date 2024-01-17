@@ -89,6 +89,10 @@ function main() {
       
     }
     requestAnimationFrame(animate);
+    if (scene.launchAsyncHandlers) {
+      scene.launchAsyncHandlers();
+    }
+
   }
   const startRender = (gl: WebGL2RenderingContext): void => {
     const outputs = Outputs.getOutputs(gl);

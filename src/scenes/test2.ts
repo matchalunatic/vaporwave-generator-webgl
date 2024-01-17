@@ -117,34 +117,80 @@ let changeColorHandler: number = -1;
 const updateObjects = (time: number): void => {
   const outputs = Outputs.getOutputs(glContext);
   outputs.setCamera(0, "mobile-perspective");
-  if (changeColorHandler === -1) {
-    changeColor();
-  }
-  if (changeSideCountHandler === -1) {
-    changeSideCount(3000);
-  }
 };
+
+const launchAsyncHandler = (): void => {
+  changeColor(100);
+  changeSideCount(3000);
+  changeCamera(10);
+}
 
 const delay = (n: number): Promise<void> => {
   return new Promise<void>( resolve => setTimeout(resolve, n));
 }
 
-const changeColor = async () => {
+const changeCamera = async(period: number, stepY?: number, maxAmountY?: number, stepX?: number, maxAmountX?: number, stepZ?: number, maxAmountZ?: number) => {
+  if (stepY === undefined) {
+    stepY = 0.01;
+  }
+  if (maxAmountY === undefined) {
+    maxAmountY = Math.PI / 3.0;
+  }
+  if (stepX === undefined) {
+    stepX = 0.005;
+  }
+  if (maxAmountX === undefined) {
+    maxAmountX = Math.PI / 32.0;
+  }
+  if (stepZ === undefined) {
+    stepZ = 0.008;
+  }
+  if (maxAmountZ === undefined) {
+    maxAmountZ = Math.PI / 32.0
+  }
+  const mob = getCamera("mobile-perspective")!;
+  let accumY = 0;
+  let accumX = 0;
+  let accumZ = 0;
+  while (true) {
+    await delay(period);
+    // rotate view
+    twgl.m4.rotateY(mob.u_camera, stepY, mob.u_camera);
+    accumY += stepY;
+    if (Math.abs(accumY) >= maxAmountY) {
+      stepY = -stepY;
+    }
+    // nod the cam head
+    twgl.m4.rotateX(mob.u_camera, stepX, mob.u_camera);
+    accumX += stepX;
+    if (Math.abs(accumX) >= maxAmountX) {
+      stepX = -stepX;
+    }
+    // bob the head a bit
+    twgl.m4.rotateZ(mob.u_camera, stepZ, mob.u_camera);
+    accumZ += stepZ;
+    if (Math.abs(accumZ) >= maxAmountZ) {
+      stepZ = - stepZ;
+    }
+  }
+  
+}
+const changeColor = async (period: number) => {
   const geom = renderObjs[0] as PipelineGeometry;
   while (true) {
-    await delay(10);
+    await delay(period);
     const col = Color.fromArray(geom.fsCalls[0].arg3 as LengthArray<number, 4>);
     const coeffs = [0, polarRandom(0.2, 0.0), polarRandom(0.5, 0.0)];
     col.rotate(0, coeffs[1], coeffs[2]);
-    geom.fsCalls[0].arg3 = col.toArray();
-    
+    geom.fsCalls[0].arg3 = col.toArray();    
   }  
 }
-const changeSideCount = (delay: number): void => {
+const changeSideCount = async (period: number) => {
   const geom = renderObjs[0] as PipelineGeometry;
-  geom.vsCalls[0].arg1[0] = Math.floor(Math.random() * 12) + 3;
-  console.log("change side count", delay, geom.vsCalls[0].arg1[0])
-  changeSideCountHandler = setTimeout(() => changeSideCount(delay), delay);
+  while (true) {
+    await delay(period);
+    geom.vsCalls[0].arg1[0] = Math.floor(Math.random() * 5) + 3;
+  }
 };
 
 const Scene: SceneType = {
@@ -152,6 +198,7 @@ const Scene: SceneType = {
   buildCameras: buildCameras,
   buildObjects: buildObjects,
   updateObjects: updateObjects,
+  launchAsyncHandlers: launchAsyncHandler,
   renderObjs: renderObjs,
 };
 

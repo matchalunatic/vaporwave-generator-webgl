@@ -159,6 +159,7 @@ type SceneType = {
   buildCameras: () => void;
   buildObjects: () => void;
   updateObjects: (time: number) => void;
+  launchAsyncHandlers?: () => void;
   renderObjs: RenderableType[];
 };
 
