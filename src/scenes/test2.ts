@@ -9,8 +9,14 @@ import {
 import { Outputs } from "../output/Outputs";
 import * as twgl from "twgl.js";
 import { pickRandomElement, polarRandom } from "../utils/misc";
-import { pickRandomColor, Color } from "../utils/colors";
-import { PipelineGeometry, addPolygonToPipelineGeometry, addStretchCoordinatesToPipelineGeometry, addWiggleVertexToPipelineGeometry } from "../prims/PipelineGeometry";
+import { pickRandomColor, Color, DarkRed, Yellow } from "../utils/colors";
+import {
+  PipelineGeometry,
+  addColorModulatorToPipelineGeometry,
+  addPolygonToPipelineGeometry,
+  addStretchCoordinatesToPipelineGeometry,
+  addWiggleVertexToPipelineGeometry,
+} from "../prims/PipelineGeometry";
 const renderObjs: RenderableType[] = [];
 const cameras: string[] = [];
 let glContext: WebGL2RenderingContext;
@@ -24,12 +30,54 @@ const buildObjects = (): void => {
   while (shapeCount > 0) {
     shapeCount -= 1;
     sidesCount = Math.floor(Math.random() * 9 + 3);
-    let pgem =  new PipelineGeometry({gl: glContext})
+    let pgem = new PipelineGeometry({ gl: glContext });
     pgem.setCamera("identity");
     pgem.setOutput(0);
-    addPolygonToPipelineGeometry(pgem, sidesCount, true, pickRandomColor(), pickRandomColor(), Math.random() / 100.0)
-    addStretchCoordinatesToPipelineGeometry(pgem, twgl.v3.create(1, 0.5, 0.5));
-    addWiggleVertexToPipelineGeometry(pgem, -0.5, 0.005);
+    addPolygonToPipelineGeometry(
+      pgem,
+      sidesCount,
+      true,
+      DarkRed,
+      Yellow,
+      0.01,
+    );
+    /*addStretchCoordinatesToPipelineGeometry(pgem, twgl.v3.create(1, 0.5, 0.5));
+    addWiggleVertexToPipelineGeometry(pgem, -0.5, 0.005);*/
+    addColorModulatorToPipelineGeometry(pgem, [
+      {
+        type: 'SQUARE',
+        amplitude: 0.4,
+        offset: 0.,
+        period: 0,
+        phase: 0.,
+      },
+      {
+        type: 'SINE',
+        amplitude: 0.4,
+        offset: 0.,
+        period: 0.,
+        phase: 0.5,
+      },
+      {
+        type: 'TRIANGLE',
+        amplitude: 0.2,
+        offset: 0.5,
+        period: 200.,
+        phase: 0.25,
+      },
+    ],
+    {
+      r: true,
+      g: true,
+      b: true,
+      a: false,
+      multiply: true,
+      triangle: false,
+      sin: true,
+      square: true,
+    },
+    "D");
+
     renderObjs.push(pgem);
   }
 };
@@ -112,24 +160,31 @@ const buildCameras = (): void => {
   cameras.push("mobile-perspective");
 };
 
-let changeSideCountHandler: number = -1;
-let changeColorHandler: number = -1;
 const updateObjects = (time: number): void => {
   const outputs = Outputs.getOutputs(glContext);
   outputs.setCamera(0, "mobile-perspective");
 };
 
 const launchAsyncHandler = (): void => {
-  changeColor(100);
+  // changeColor(3000);
   changeSideCount(3000);
-  changeCamera(10);
-}
+  // changeCamera(10);
+  // changeProportions(1);
+};
 
 const delay = (n: number): Promise<void> => {
-  return new Promise<void>( resolve => setTimeout(resolve, n));
-}
+  return new Promise<void>((resolve) => setTimeout(resolve, n));
+};
 
-const changeCamera = async(period: number, stepY?: number, maxAmountY?: number, stepX?: number, maxAmountX?: number, stepZ?: number, maxAmountZ?: number) => {
+const changeCamera = async (
+  period: number,
+  stepY?: number,
+  maxAmountY?: number,
+  stepX?: number,
+  maxAmountX?: number,
+  stepZ?: number,
+  maxAmountZ?: number
+) => {
   if (stepY === undefined) {
     stepY = 0.01;
   }
@@ -146,7 +201,7 @@ const changeCamera = async(period: number, stepY?: number, maxAmountY?: number, 
     stepZ = 0.008;
   }
   if (maxAmountZ === undefined) {
-    maxAmountZ = Math.PI / 32.0
+    maxAmountZ = Math.PI / 32.0;
   }
   const mob = getCamera("mobile-perspective")!;
   let accumY = 0;
@@ -170,21 +225,75 @@ const changeCamera = async(period: number, stepY?: number, maxAmountY?: number, 
     twgl.m4.rotateZ(mob.u_camera, stepZ, mob.u_camera);
     accumZ += stepZ;
     if (Math.abs(accumZ) >= maxAmountZ) {
-      stepZ = - stepZ;
+      stepZ = -stepZ;
     }
   }
-  
-}
+};
 const changeColor = async (period: number) => {
   const geom = renderObjs[0] as PipelineGeometry;
   while (true) {
     await delay(period);
-    const col = Color.fromArray(geom.fsCalls[0].arg3 as LengthArray<number, 4>);
+    /* const col = Color.fromArray(geom.fsCalls[0].arg3 as LengthArray<number, 4>);
     const coeffs = [0, polarRandom(0.2, 0.0), polarRandom(0.5, 0.0)];
     col.rotate(0, coeffs[1], coeffs[2]);
-    geom.fsCalls[0].arg3 = col.toArray();    
-  }  
-}
+    geom.fsCalls[0].arg3 = col.toArray(); */
+    geom.fsCalls[0].arg3 = pickRandomColor().toArray();
+    geom.fsCalls[0].arg2 = pickRandomColor().toArray();
+  }
+};
+
+const changeProportions = async (
+  period: number,
+  stepY?: number,
+  maxAmountY?: number,
+  stepX?: number,
+  maxAmountX?: number,
+  stepZ?: number,
+  maxAmountZ?: number
+): Promise<void> => {
+  const geom = renderObjs[0] as PipelineGeometry;
+  if (stepY === undefined) {
+    stepY = 0.01;
+  }
+  if (maxAmountY === undefined) {
+    maxAmountY = 0.3;
+  }
+  if (stepX === undefined) {
+    stepX = 0.01;
+  }
+  if (maxAmountX === undefined) {
+    maxAmountX = 0.3;
+  }
+  if (stepZ === undefined) {
+    stepZ = 0.01;
+  }
+  if (maxAmountZ === undefined) {
+    maxAmountZ = 0;
+  }
+  let accumX = 0;
+  let accumY = 0;
+  let accumZ = 0;
+  while (true) {
+    await delay(period);
+    geom.vsCalls[1].arg1;
+    accumX += stepX;
+    accumY += stepY;
+    accumZ += stepZ;
+    if (Math.abs(accumX) >= maxAmountX) {
+      stepX = -stepX;
+    }
+    if (Math.abs(accumY) >= maxAmountY) {
+      stepY = -stepY;
+    }
+    if (Math.abs(accumZ) >= maxAmountZ) {
+      stepZ -= stepZ;
+    }
+    geom.vsCalls[1].arg1[0] += stepX;
+    geom.vsCalls[1].arg1[1] += stepY;
+    geom.vsCalls[1].arg1[2] += stepZ;
+  }
+};
+
 const changeSideCount = async (period: number) => {
   const geom = renderObjs[0] as PipelineGeometry;
   while (true) {

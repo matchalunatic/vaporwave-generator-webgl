@@ -9,9 +9,28 @@ type LookMatricesHolder = {
 };
 
 const isLookMatricesHolder = (m: any): m is LookMatricesHolder => {
-  console.log("foo", (typeof m))
-  return (typeof m) === "LookMatricesHolder";
-}
+  // this is a crazy typeguard
+  const candidate = m as LookMatricesHolder;
+  return (
+    candidate.u_camera !== undefined &&
+    candidate.u_projection !== undefined &&
+    candidate.projParams !== undefined &&
+    candidate.orthographic !== undefined &&
+    candidate.camParams !== undefined &&
+    candidate.u_camera.reduce !== undefined &&
+    candidate.u_projection.reduce !== undefined &&
+    (candidate.projParams === null ||
+      (typeof candidate.projParams.far === "number" &&
+        typeof candidate.projParams.near === "number")) &&
+    (candidate.camParams === null ||
+      (candidate.camParams.eye !== undefined &&
+        candidate.camParams.lookAt !== undefined &&
+        candidate.camParams.up !== undefined &&
+        candidate.camParams.eye.copyWithin !== undefined &&
+        candidate.camParams.lookAt.copyWithin !== undefined &&
+        candidate.camParams.up.copyWithin !== undefined))
+  );
+};
 
 type degrees = number;
 
@@ -105,7 +124,7 @@ const createCamera = (
   up?: twgl.v3.Vec3,
   projection?: ProjectionParameters | undefined | null,
   orthographic?: boolean,
-  orthographicParameters?: OrthographicProjectionParameters | undefined | null,
+  orthographicParameters?: OrthographicProjectionParameters | undefined | null
 ): LookMatricesHolder | undefined => {
   if (camerasHolder.get(name) !== undefined) {
     console.error(`Camera ${name} already exists`);
@@ -124,7 +143,7 @@ const createOrthographicCamera = (
   translation?: twgl.v3.Vec3,
   rotationAxis?: twgl.v3.Vec3,
   rotationAngle?: degrees,
-  relativeRotation?: boolean,
+  relativeRotation?: boolean
 ): LookMatricesHolder => {
   if (!o) {
     o = DefaultOrthographicParameters;
@@ -144,7 +163,12 @@ const createOrthographicCamera = (
     if (relativeRotation && translation) {
       twgl.v3.add(rotationAxis, translation, rotationAxis);
     }
-    twgl.m4.axisRotate(orthocam, rotationAxis, degToRad(rotationAngle), orthocam);
+    twgl.m4.axisRotate(
+      orthocam,
+      rotationAxis,
+      degToRad(rotationAngle),
+      orthocam
+    );
   }
   if (translation) {
     twgl.m4.translate(orthocam, translation, orthocam);
@@ -179,7 +203,6 @@ const createPerspectiveCamera = (
   }
   if (!up) {
     up = twgl.v3.cross(eye, twgl.v3.create(0, 1, 0));
-    
   }
   const cameraMat = twgl.m4.lookAt(eye, lookAt, up);
   camerasHolder.set(name, {
@@ -239,7 +262,7 @@ export {
   createOrthographicCamera,
   createPerspectiveCamera,
   moveCamera,
-  isLookMatricesHolder
+  isLookMatricesHolder,
 };
 export type {
   LookMatricesHolder,

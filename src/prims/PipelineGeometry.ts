@@ -16,14 +16,7 @@ import { Color, pickRandomColor } from "../utils/colors";
 
 type MAX_CALLS_PER_PIPELINE = 16;
 const MAX_CALLS_PER_PIPELINE = 16;
-const UNITY_QUAD = [
- -1, -1, 0,
- -1,  1, 0,
-  1,  1, 0,
-  1,  1, 0,
- -1, -1, 0,
-  1, -1, 0,
-];
+const UNITY_QUAD = [-1, -1, 0, -1, 1, 0, 1, 1, 0, 1, 1, 0, -1, -1, 0, 1, -1, 0];
 
 interface FunctionCall {
   f_id: number;
@@ -79,8 +72,8 @@ class FunctionCall {
 interface PipelineGeometryParameters {
   vertexShaderCalls?: LengthArray<FunctionCall, MAX_CALLS_PER_PIPELINE>;
   fragmentShaderCalls?: LengthArray<FunctionCall, MAX_CALLS_PER_PIPELINE>;
-  drawFunction?: DrawFunctionTypes,
-  drawCallback?: DrawCallbackType|undefined,
+  drawFunction?: DrawFunctionTypes;
+  drawCallback?: DrawCallbackType | undefined;
   gl: WebGL2RenderingContext;
 }
 
@@ -108,7 +101,10 @@ class PipelineGeometry implements RenderableType {
 
     this.initializeOutputtable(Outputs.getOutputs(this.parameters.gl));
     if (this.parameters.drawFunction) {
-      this.setDrawFunction(this.parameters.drawFunction, this.parameters.drawCallback)
+      this.setDrawFunction(
+        this.parameters.drawFunction,
+        this.parameters.drawCallback
+      );
     }
     this.programInfo = twgl.createProgramInfo(this.parameters.gl, [
       vs_Library,
@@ -127,22 +123,21 @@ class PipelineGeometry implements RenderableType {
       );
     }
     this.drawCb = callback;
-  
-  if (t === "QUAD") {
-    // prepare buffer info
-    this.bufferInfo = twgl.createBufferInfoFromArrays(this.parameters.gl, {
-      a_position: {
-        numComponents: 3,
-        data: UNITY_QUAD,
-      },
-      a_texcoord: {
-        numComponents: 3,
-        data: UNITY_QUAD,
-      },
-    });
 
+    if (t === "QUAD") {
+      // prepare buffer info
+      this.bufferInfo = twgl.createBufferInfoFromArrays(this.parameters.gl, {
+        a_position: {
+          numComponents: 3,
+          data: UNITY_QUAD,
+        },
+        a_texcoord: {
+          numComponents: 3,
+          data: UNITY_QUAD,
+        },
+      });
+    }
   }
-}
   private addCall(
     tgt: "vs" | "fs",
     f: FunctionCall,
@@ -210,8 +205,7 @@ class PipelineGeometry implements RenderableType {
     }
   }
 
-  drawQuad(): void {
-  }
+  drawQuad(): void {}
 }
 
 // vertex shader constants
@@ -222,6 +216,7 @@ const WIGGLE_VERTEX = 3;
 
 // fragment shader constants
 const COLOR_POLYGON = 1;
+const MODULATE_COLOR = 2;
 
 function addPolygonToPipelineGeometry(
   p: PipelineGeometry,
@@ -251,7 +246,13 @@ function addPolygonToPipelineGeometry(
     ctx: PipelineGeometry
   ): void => {
     // console.log(ctx.programInfo.uniformSetters)
-    twgl.drawBufferInfo(gl, ctx.bufferInfo, gl.TRIANGLES, fcall_vert.arg1[0] * 3, 0);
+    twgl.drawBufferInfo(
+      gl,
+      ctx.bufferInfo,
+      gl.TRIANGLES,
+      fcall_vert.arg1[0] * 3,
+      0
+    );
   };
   let res = true;
   res = res && p.addVSCall(fcall_vert);
@@ -287,6 +288,152 @@ function addWiggleVertexToPipelineGeometry(
   } as unknown as FunctionCall;
   return p.addVSCall(fcall_vert);
 }
+
+type ModulationParameters = {
+  type: "SINE" | "SQUARE" | "TRIANGLE";
+  period: number;
+  amplitude: number;
+  offset: number;
+  phase: number;
+};
+
+type ColorModulationTargets = {
+  r: boolean;
+  g: boolean;
+  b: boolean;
+  a: boolean;
+  multiply: boolean;
+  sin: boolean;
+  square: boolean;
+  triangle: boolean;
+};
+
+type OperationTargets = {
+  add: {
+    sine: boolean;
+    square: boolean;
+    triangle: boolean;
+  };
+  multiply: {
+    sine: boolean;
+    square: boolean;
+    triangle: boolean;
+  };
+};
+
+const OPTARGET_A: OperationTargets = {
+  add: {
+    sine: true,
+    square: true,
+    triangle: true,
+  },
+  multiply: {
+    sine: false,
+    square: false,
+    triangle: false,
+  },
+};
+
+const OPTARGET_B: OperationTargets = {
+  multiply: {
+    sine: true,
+    square: true,
+    triangle: true,
+  },
+  add: {
+    sine: false,
+    square: false,
+    triangle: false,
+  },
+};
+
+const OPTARGET_C: OperationTargets = {
+  multiply: {
+    sine: true,
+    square: true,
+    triangle: true,
+  },
+  add: {
+    sine: true,
+    square: true,
+    triangle: true,
+  },
+};
+
+const OPTARGET_D: OperationTargets = {
+  multiply: {
+    sine: true,
+    square: false,
+    triangle: true,
+  },
+  add: {
+    sine: true,
+    square: false,
+    triangle: true,
+  },
+};
+
+function addColorModulatorToPipelineGeometry(
+  p: PipelineGeometry,
+  params: ModulationParameters[],
+  colorTargets: ColorModulationTargets,
+  operationTargets: "A" | "B" | "C" | "D"
+) {
+  let fcall_frag = {
+    f_id: MODULATE_COLOR,
+    flags: 0,
+    arg1: [0.0, 0, 0, 0],
+    arg2: [0.0, 0, 0, 0],
+    arg3: [0.0, 0, 0, 0],
+  } as unknown as FunctionCall;
+  let flags = 0;
+  for (const parm of params) {
+    const tg = [parm.period, parm.amplitude, parm.offset, parm.phase];
+    if (parm.type === "SINE") {
+      fcall_frag.arg1 = tg;
+    } else if (parm.type == "SQUARE") {
+      fcall_frag.arg2 = tg;
+    } else if (parm.type == "TRIANGLE") {
+      fcall_frag.arg3 = tg;
+    } else {
+      throw Error("Error in parm.type");
+    }
+  }
+  flags =
+    flags |
+    (colorTargets.r ? 1 : 0) |
+    (colorTargets.g ? 2 : 0) |
+    (colorTargets.b ? 4 : 0) |
+    (colorTargets.a ? 8 : 0) |
+    (colorTargets.multiply ? 16 : 0) |
+    (colorTargets.sin ? 32 : 0) |
+    (colorTargets.square ? 64 : 0) |
+    (colorTargets.triangle ? 128 : 0);
+  let opTarget: OperationTargets;
+  if (operationTargets === "A") {
+    opTarget = OPTARGET_A;
+  } else if (operationTargets === "B") {
+    opTarget = OPTARGET_B;
+  } else if (operationTargets === "C") {
+    opTarget = OPTARGET_C;
+  } else if (operationTargets === "D") {
+    opTarget = OPTARGET_D;
+  }else {
+    throw Error("no operation target");
+  }
+  flags =
+    flags |
+    (opTarget.multiply.sine ? 256 : 0) |
+    (opTarget.multiply.square ? 512 : 0) |
+    (opTarget.multiply.triangle ? 1024 : 0) |
+    (opTarget.add.sine ? 2048 : 0) |
+    (opTarget.add.square ? 4096 : 0) |
+    (opTarget.add.triangle ? 8192 : 0);
+  fcall_frag.flags = flags;
+  console.log(fcall_frag);
+  return p.addFSCall(fcall_frag);
+}
+
 interface PipelineGeometry
   extends CameraSubjectPrimitive,
     TransformablePrimitive,
@@ -302,5 +449,6 @@ export {
   addPolygonToPipelineGeometry,
   addStretchCoordinatesToPipelineGeometry,
   addWiggleVertexToPipelineGeometry,
+  addColorModulatorToPipelineGeometry,
 };
 export type { PipelineGeometryParameters };

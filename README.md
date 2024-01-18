@@ -48,10 +48,10 @@ b. might run in userspace and write to attributes like a normal parameter variat
 - [x] we implement adequate properties into the Shape objects to tweak how they render at runtime
 - [x] we create a second one, with different modulators
 - [x] we render both
-- we create a transform shader that will take a mesh and apply a transformation matrix to it (scale and rotate) with attributes-based parameters that we may modulate
-- we plug the transform shader and its modulator into our render pipeline for one of the shapes and we see that it is transformed
-- we create another primitive, Grid, that generates a n x m wireframe grid
-- we create a Material object that will let us define color, gradients, as functions of parameters (like time) with parameters and we create a modulator over time to evolve it
-- then maybe a starfield object, scattering dot particles across a volume pseudo-randomly and setting a subjective camera in it that may slowly move with modulation parameters
-- we add an infinity-echo object that takes a periodic snapshot of a texture and merges it with all previous textures, like a windows xp echo glitch https://mrdoob.com/lab/javascript/effects/ie6/x, of course the frequency and reset parameters can be modulated. we plug that into a triangle
-- with all that we almost get to what vaporwave-generator does
+- [ ] we create a transform shader that will take a mesh and apply a transformation matrix to it (scale and rotate) with attributes-based parameters that we may modulate
+- [ ] we plug the transform shader and its modulator into our render pipeline for one of the shapes and we see that it is transformed
+- [ ] we create another primitive, Grid, that generates a n x m wireframe grid
+- [ ] we create a Material object that will let us define color, gradients, as functions of parameters (like time) with parameters and we create a modulator over time to evolve it
+- [ ] then maybe a starfield object, scattering dot particles across a volume pseudo-randomly and setting a subjective camera in it that may slowly move with modulation parameters
+- [ ] we add an infinity-echo object that takes a periodic snapshot of a texture and merges it with all previous textures, like a windows xp echo glitch https://mrdoob.com/lab/javascript/effects/ie6/x, of course the frequency and reset parameters can be modulated. we plug that into a triangle
+- [ ] with all that we almost get to what vaporwave-generator does
