@@ -17,13 +17,14 @@ struct FunctionCall {
 
 struct function_mapper {
     int color_polygon;
-    int modulate_color;
+    int modulate_op;
 };
 
 // parameters
 in vec4 v_to_fragment;
 out vec4 out_color;
 uniform float u_time;
+uniform bool u_check_parameters;
 uniform FunctionCall[FS_STACK_SIZE] f_frag_pipeline; // the function pipeline: this contains all shader calls
 
 // uv style value
@@ -80,34 +81,27 @@ float trianglewave_value(float cur_time, float period, float amplitude, float ph
     return triangleValue + offset;
 }
 
+// square wave 
 float squarewave_value(float cur_time, float period, float amplitude, float phase_shift, float offset, float duty_cycle) {
-    if (period == 0.) {
-        return 0.;
-    }
     // Calculate the phase of the square wave with phase shift
     float phase = fract((cur_time / period) + phase_shift);
 
     // Calculate the square wave value and apply amplitude
-    float squareValue = float(phase < duty_cycle) * amplitude;
+    float squareValue = (float(phase < duty_cycle) + offset)  * amplitude;
 
-    return squareValue + offset;
+    return squareValue;
 }
 
-
-// takes time as input and reads flags to modulate out_color based on simple modular functions
-// you can repeat this modulator several times if you want to apply different functions
-// this does the operation 
-bool modulate_color(int flags, vec4 arg1, vec4 arg2, vec4 arg3) {
+// flags for modulation
 #define MODULATE_R                      1
 #define MODULATE_G                      2
 #define MODULATE_B                      4
 #define MODULATE_A                      8
-#define OP_MULTIPLY                     16
 #define APPLY_SIN                       32
 #define APPLY_SQU                       64
 #define APPLY_TRI                       128
-#define MULTIPLY_MASK                   (256 | 512 | 1024) // add sin, add squ, add tri
-#define ADD_MASK                        (2048 | 4096 | 8192) // mul sin, mul squ, mul tri
+#define OP_MULTIPLY                     256
+#define NO_CLAMPING                     512
 #define DO_MODULATE_R                   ((MODULATE_R & flags) > 0)
 #define DO_MODULATE_G                   ((MODULATE_G & flags) > 0)
 #define DO_MODULATE_B                   ((MODULATE_B & flags) > 0)
@@ -116,87 +110,68 @@ bool modulate_color(int flags, vec4 arg1, vec4 arg2, vec4 arg3) {
 #define DO_SIN                          ((APPLY_SIN & flags) > 0)
 #define DO_SQU                          ((APPLY_SQU & flags) > 0)
 #define DO_TRI                          ((APPLY_TRI & flags) > 0)
-#define MUL_SIN                         ((256 & flags) > 0)
-#define MUL_SQU                         ((512 & flags) > 0)
-#define MUL_TRI                         ((1024 & flags) > 0)
-#define ADD_SIN                         ((2048 & flags) > 0)
-#define ADD_SQU                         ((4096 & flags) > 0)
-#define ADD_TRI                         ((8192 & flags) > 0)
-#define SIN_MODULATION_PERIOD           (arg1.r)
-#define SIN_MODULATION_AMPLITUDE        (arg1.g)
-#define SIN_MODULATION_OFFSET           (arg1.b)
-#define SIN_MODULATION_PHASE            (arg1.a)
-#define SQU_MODULATION_PERIOD           (arg2.r)
-#define SQU_MODULATION_AMPLITUDE        (arg2.g)
-#define SQU_MODULATION_OFFSET           (arg2.b)
-#define SQU_MODULATION_PHASE            (arg2.a)
-#define TRI_MODULATION_PERIOD           (arg3.r)
-#define TRI_MODULATION_AMPLITUDE        (arg3.g)
-#define TRI_MODULATION_OFFSET           (arg3.b)
-#define TRI_MODULATION_PHASE            (arg3.a)
-    float mod_value_sin = sinewave_value(
-        u_time,
-        SIN_MODULATION_PERIOD,
-        SIN_MODULATION_AMPLITUDE,
-        SIN_MODULATION_PHASE,
-        SIN_MODULATION_OFFSET);
+#define DO_NOT_CLAMP                    ((NO_CLAMPING & flags) > 0)
 
-    float mod_value_tri = trianglewave_value(
-        u_time,
-        TRI_MODULATION_PERIOD,
-        TRI_MODULATION_AMPLITUDE,
-        TRI_MODULATION_PHASE,
-        TRI_MODULATION_OFFSET);
-    float mod_value_squ = squarewave_value(
-        u_time,
-        SQU_MODULATION_PERIOD,
-        SQU_MODULATION_AMPLITUDE,
-        SQU_MODULATION_PHASE,
-        SQU_MODULATION_OFFSET, 0.75);
-    float mod_value = 0.;
-    float mod_value_mul = 1.;
-    float mod_value_add = 0.;
-    vec4 modules;
-    if (MUL_SIN) {
-        mod_value_mul *= mod_value_sin;
-    }
-    if (MUL_SQU) {
-        mod_value_mul *= mod_value_squ;
-    }
-    if (MUL_TRI) {
-        mod_value_mul *= mod_value_tri;
-    }
-    if (ADD_SIN) {
-        mod_value_add += mod_value_sin;
-    }
-    if (ADD_SQU) {
-        mod_value_add += mod_value_squ;
-    }
-    if (ADD_TRI) {
-        mod_value_add += mod_value_tri;
-    }
-    mod_value = mod_value_mul + mod_value_add;
+void errorTexture(vec4 col1, vec4 col2) {
+    if ((int(gl_FragCoord.y) % 20) < 10)
+            out_color = col1;
+        else
+            out_color = col2;
+}
 
+// display errors in case of invalid parameters
+bool modulate_op_check_parameters(int flags, vec4 arg1, vec4 arg2, vec4 arg3) {
+    bool isOk = true;
+    if (DO_SIN && DO_SQU || DO_SIN && DO_TRI || DO_TRI && DO_SQU) {
+        errorTexture(vec4(0.3, 0., 0.3, 1), vec4(0.8, 0.8, 0.8, 1.));
+        isOk = false;
+    }
+    else if (arg1.x == 0.) {
+        if ((int(gl_FragCoord.y) % 20) < 10)
+            out_color = vec4(0.5, 0, 0.5, 1);
+        else
+            out_color = vec4(1., 0., 0.4, 1.);
+        isOk = false; 
+    }
+    return isOk;
+}
 
-    if (DO_MULTIPLY) {
-    modules = vec4(
-        DO_MODULATE_R ? mod_value : 1.,
-        DO_MODULATE_G ? mod_value : 1.,
-        DO_MODULATE_B ? mod_value : 1.,
-        DO_MODULATE_A ? mod_value : 1.
-    );
-        out_color = clamp(out_color * modules, zerof_vec4, onef_vec4);
-    } else {
-        modules = vec4(
-        DO_MODULATE_R ? mod_value : 0.,
-        DO_MODULATE_G ? mod_value : 0.,
-        DO_MODULATE_B ? mod_value : 0.,
-        DO_MODULATE_A ? mod_value : 0.
-    );
-        out_color = clamp(out_color + modules, zerof_vec4, onef_vec4);
+// modulate parameters through a given operator
+// flags: as defined up there
+// parameters:  arg1: [period, amplitude, phase shift, offset]
+//              arg2: [duty cycle (for square wave), x, x, x]
+//              arg3: [x, x, x, x]
+bool modulate_op(int flags, vec4 arg1, vec4 arg2, vec4 arg3) {
+    float modulation;
+    if (DO_SIN)
+        modulation = sinewave_value(u_time, arg1.x, arg1.y, arg1.z, arg1.a  );
+    else if (DO_SQU)
+        modulation = squarewave_value(u_time, arg1.x, arg1.y, arg1.z, arg1.a, arg2.x);
+    else if (DO_TRI)
+        modulation = trianglewave_value(u_time, arg1.x, arg1.y, arg1.z, arg1.a);
+    if (DO_MODULATE_R) {
+        if (DO_MULTIPLY) out_color.r *= modulation;
+        else out_color.r += modulation;
+    }
+    if (DO_MODULATE_G) {
+        if (DO_MULTIPLY) out_color.g *= modulation;
+        else out_color.g += modulation;
+    }
+    if (DO_MODULATE_B) {
+        if (DO_MULTIPLY) out_color.b *= modulation;
+        else out_color.b += modulation;
+    }
+    if (DO_MODULATE_A) {
+        if (DO_MULTIPLY) out_color.a *= modulation;
+        else out_color.a += modulation;
+    }
+    if (!DO_NOT_CLAMP) {
+        out_color = clamp(out_color, zerof_vec4, onef_vec4);
     }
     return true;
 }
+
+
 
 void main() {
     bool cont = false;
@@ -206,8 +181,14 @@ void main() {
         if (function_map.color_polygon == fc.f_id) {
             cont = color_polygon(fc.flags, fc.arg1, fc.arg2, fc.arg3);
         }
-        else if (function_map.modulate_color == fc.f_id) {
-            cont = modulate_color(fc.flags, fc.arg1, fc.arg2, fc.arg3);
+        else if (function_map.modulate_op == fc.f_id) {
+            if (u_check_parameters) {
+                cont = modulate_op_check_parameters(fc.flags, fc.arg1, fc.arg2, fc.arg3);
+                if (!cont) {
+                    break;
+                }
+            }
+            cont = modulate_op(fc.flags, fc.arg1, fc.arg2, fc.arg3);
         } else {
             cont = false;
         }

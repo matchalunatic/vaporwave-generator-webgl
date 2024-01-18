@@ -181,6 +181,7 @@ class PipelineGeometry implements RenderableType {
       u_model: this.u_model ?? twgl.m4.identity(),
       u_camera: this.cameraHolder.u_camera,
       u_projection: this.cameraHolder.u_projection,
+      u_check_parameters: AppState.debugShaders(time),
       f_vert_pipeline: this.vsCalls.toBasic(),
       f_frag_pipeline: this.fsCalls.toBasic(),
     };
@@ -295,89 +296,22 @@ type ModulationParameters = {
   amplitude: number;
   offset: number;
   phase: number;
+  dutyCycle?: number;
+  multiply: boolean;
+  noClamping?: boolean;
 };
 
 type ColorModulationTargets = {
-  r: boolean;
-  g: boolean;
-  b: boolean;
-  a: boolean;
-  multiply: boolean;
-  sin: boolean;
-  square: boolean;
-  triangle: boolean;
-};
-
-type OperationTargets = {
-  add: {
-    sine: boolean;
-    square: boolean;
-    triangle: boolean;
-  };
-  multiply: {
-    sine: boolean;
-    square: boolean;
-    triangle: boolean;
-  };
-};
-
-const OPTARGET_A: OperationTargets = {
-  add: {
-    sine: true,
-    square: true,
-    triangle: true,
-  },
-  multiply: {
-    sine: false,
-    square: false,
-    triangle: false,
-  },
-};
-
-const OPTARGET_B: OperationTargets = {
-  multiply: {
-    sine: true,
-    square: true,
-    triangle: true,
-  },
-  add: {
-    sine: false,
-    square: false,
-    triangle: false,
-  },
-};
-
-const OPTARGET_C: OperationTargets = {
-  multiply: {
-    sine: true,
-    square: true,
-    triangle: true,
-  },
-  add: {
-    sine: true,
-    square: true,
-    triangle: true,
-  },
-};
-
-const OPTARGET_D: OperationTargets = {
-  multiply: {
-    sine: true,
-    square: false,
-    triangle: true,
-  },
-  add: {
-    sine: true,
-    square: false,
-    triangle: true,
-  },
+  r?: boolean;
+  g?: boolean;
+  b?: boolean;
+  a?: boolean;
 };
 
 function addColorModulatorToPipelineGeometry(
   p: PipelineGeometry,
-  params: ModulationParameters[],
-  colorTargets: ColorModulationTargets,
-  operationTargets: "A" | "B" | "C" | "D"
+  parm: ModulationParameters,
+  colorTargets: ColorModulationTargets
 ) {
   let fcall_frag = {
     f_id: MODULATE_COLOR,
@@ -387,48 +321,34 @@ function addColorModulatorToPipelineGeometry(
     arg3: [0.0, 0, 0, 0],
   } as unknown as FunctionCall;
   let flags = 0;
-  for (const parm of params) {
-    const tg = [parm.period, parm.amplitude, parm.offset, parm.phase];
-    if (parm.type === "SINE") {
-      fcall_frag.arg1 = tg;
-    } else if (parm.type == "SQUARE") {
-      fcall_frag.arg2 = tg;
-    } else if (parm.type == "TRIANGLE") {
-      fcall_frag.arg3 = tg;
-    } else {
-      throw Error("Error in parm.type");
-    }
+
+  const tg = [parm.period, parm.amplitude, parm.phase, parm.offset];
+  fcall_frag.arg1 = tg;
+
+  if (parm.type == "SQUARE") {
+    fcall_frag.arg2[0] = parm.dutyCycle ?? 0.5;
   }
-  flags =
-    flags |
-    (colorTargets.r ? 1 : 0) |
-    (colorTargets.g ? 2 : 0) |
-    (colorTargets.b ? 4 : 0) |
-    (colorTargets.a ? 8 : 0) |
-    (colorTargets.multiply ? 16 : 0) |
-    (colorTargets.sin ? 32 : 0) |
-    (colorTargets.square ? 64 : 0) |
-    (colorTargets.triangle ? 128 : 0);
-  let opTarget: OperationTargets;
-  if (operationTargets === "A") {
-    opTarget = OPTARGET_A;
-  } else if (operationTargets === "B") {
-    opTarget = OPTARGET_B;
-  } else if (operationTargets === "C") {
-    opTarget = OPTARGET_C;
-  } else if (operationTargets === "D") {
-    opTarget = OPTARGET_D;
-  }else {
-    throw Error("no operation target");
+  switch(parm.type) {
+    case "SINE":
+      flags = 32;
+      break;
+    case "SQUARE":
+      flags = 64;
+      break;
+    case "TRIANGLE":
+      flags = 128;
+      break;
   }
-  flags =
-    flags |
-    (opTarget.multiply.sine ? 256 : 0) |
-    (opTarget.multiply.square ? 512 : 0) |
-    (opTarget.multiply.triangle ? 1024 : 0) |
-    (opTarget.add.sine ? 2048 : 0) |
-    (opTarget.add.square ? 4096 : 0) |
-    (opTarget.add.triangle ? 8192 : 0);
+  if (parm.multiply) {
+    flags |= 256;
+  }
+  if (parm.noClamping) {
+    flags |= 512;
+  }
+  flags |= colorTargets.r ? 1 : 0;
+  flags |= colorTargets.g ? 2 : 0;
+  flags |= colorTargets.b ? 4 : 0;
+  flags |= colorTargets.a ? 8 : 0;
   fcall_frag.flags = flags;
   console.log(fcall_frag);
   return p.addFSCall(fcall_frag);

@@ -43,41 +43,48 @@ const buildObjects = (): void => {
     );
     /*addStretchCoordinatesToPipelineGeometry(pgem, twgl.v3.create(1, 0.5, 0.5));
     addWiggleVertexToPipelineGeometry(pgem, -0.5, 0.005);*/
-    addColorModulatorToPipelineGeometry(pgem, [
-      {
-        type: 'SQUARE',
-        amplitude: 0.4,
-        offset: 0.,
-        period: 0,
-        phase: 0.,
-      },
-      {
-        type: 'SINE',
-        amplitude: 0.4,
-        offset: 0.,
-        period: 0.,
-        phase: 0.5,
-      },
-      {
-        type: 'TRIANGLE',
-        amplitude: 0.2,
-        offset: 0.5,
-        period: 200.,
-        phase: 0.25,
-      },
-    ],
-    {
+    // multiply colors by a cosine normalized wave (but do not clamp result)
+    addColorModulatorToPipelineGeometry(pgem, {
+      amplitude: .1,
+      multiply: true,
+      offset: 0.9,
+      period: 1200,
+      phase: 0.5,
+      type: "SINE",
+      noClamping: true,
+    }, {
+      r: false,
+      g: true,
+      b: true,
+    })
+    // modulate this by a fast sine wave
+    addColorModulatorToPipelineGeometry(pgem, {
+      amplitude: .05,
+      multiply: true,
+      offset: 0.95,
+      phase: 0.,
+      period: 1.,
+      type: "SINE",
+      noClamping: true,
+    }, {
+      r: false,
+      g: true,
+      b: true,
+    }) 
+    // blink color intensity with a 75% duty cycle square wavefor all color channels and do clamp
+    /*addColorModulatorToPipelineGeometry(pgem, {
+      amplitude: 1.,
+      multiply: false,
+      offset: -0.5,
+      period: 2000,
+      phase: 0.5,
+      dutyCycle: 0.25,
+      type: "SQUARE"
+    }, {
       r: true,
       g: true,
       b: true,
-      a: false,
-      multiply: true,
-      triangle: false,
-      sin: true,
-      square: true,
-    },
-    "D");
-
+    })*/
     renderObjs.push(pgem);
   }
 };
