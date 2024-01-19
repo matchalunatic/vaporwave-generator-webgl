@@ -214,6 +214,7 @@ class PipelineGeometry implements RenderableType {
 const GENERATE_POLYGON = 1;
 const STRETCH_COORDINATES = 2;
 const WIGGLE_VERTEX = 3;
+const MODULATE_VERTEX = 4;
 
 // fragment shader constants
 const COLOR_POLYGON = 1;
@@ -308,6 +309,12 @@ type ColorModulationTargets = {
   a?: boolean;
 };
 
+type VertexModulationShaders = {
+  x?: boolean;
+  y?: boolean;
+  z?: boolean;
+  w?: boolean;
+};
 function addColorModulatorToPipelineGeometry(
   p: PipelineGeometry,
   parm: ModulationParameters,
@@ -354,6 +361,51 @@ function addColorModulatorToPipelineGeometry(
   return p.addFSCall(fcall_frag);
 }
 
+function addVertexModulatorToPipelineGeometry(
+  p: PipelineGeometry,
+  parm: ModulationParameters,
+  colorTargets: VertexModulationShaders
+) {
+  let fcall_vert = {
+    f_id: MODULATE_VERTEX,
+    flags: 0,
+    arg1: [0.0, 0, 0, 0],
+    arg2: [0.0, 0, 0, 0],
+    arg3: [0.0, 0, 0, 0],
+  } as unknown as FunctionCall;
+  let flags = 0;
+
+  const tg = [parm.period, parm.amplitude, parm.phase, parm.offset];
+  fcall_vert.arg1 = tg;
+
+  if (parm.type == "SQUARE") {
+    fcall_vert.arg2[0] = parm.dutyCycle ?? 0.5;
+  }
+  switch(parm.type) {
+    case "SINE":
+      flags = 32;
+      break;
+    case "SQUARE":
+      flags = 64;
+      break;
+    case "TRIANGLE":
+      flags = 128;
+      break;
+  }
+  if (parm.multiply) {
+    flags |= 256;
+  }
+  if (!parm.noClamping) {
+    flags |= 512;
+  }
+  flags |= colorTargets.x ? 1 : 0;
+  flags |= colorTargets.y ? 2 : 0;
+  flags |= colorTargets.z ? 4 : 0;
+  flags |= colorTargets.w ? 8 : 0;
+  fcall_vert.flags = flags;
+  console.log("Vertex modulator", fcall_vert);
+  return p.addVSCall(fcall_vert);
+}
 interface PipelineGeometry
   extends CameraSubjectPrimitive,
     TransformablePrimitive,
@@ -370,5 +422,6 @@ export {
   addStretchCoordinatesToPipelineGeometry,
   addWiggleVertexToPipelineGeometry,
   addColorModulatorToPipelineGeometry,
+  addVertexModulatorToPipelineGeometry,
 };
 export type { PipelineGeometryParameters };

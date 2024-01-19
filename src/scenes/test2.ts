@@ -15,6 +15,7 @@ import {
   addColorModulatorToPipelineGeometry,
   addPolygonToPipelineGeometry,
   addStretchCoordinatesToPipelineGeometry,
+  addVertexModulatorToPipelineGeometry,
   addWiggleVertexToPipelineGeometry,
 } from "../prims/PipelineGeometry";
 const renderObjs: RenderableType[] = [];
@@ -70,7 +71,46 @@ const buildObjects = (): void => {
       r: false,
       g: true,
       b: true,
-    }) 
+    })
+
+    addVertexModulatorToPipelineGeometry(pgem, {
+      amplitude: 0.5,
+      multiply: true,
+      offset: 1.,
+      phase: 0.,
+      period: 1000.,
+      type: "SINE",
+      noClamping: true,
+    }, {
+      x: true,
+      y: false,
+      z: false,
+    });
+    addVertexModulatorToPipelineGeometry(pgem, {
+      amplitude: 0.5,
+      multiply: true,
+      offset: .5,
+      phase: 0.5,
+      period: 750.,
+      type: "SINE",
+      noClamping: true,
+    }, {
+      x: false,
+      y: true,
+      z: false,
+    });
+    addVertexModulatorToPipelineGeometry(pgem, {
+      amplitude: 0.01,
+      multiply: false,
+      offset: 0.02,
+      phase: 0.,
+      period: 1000,
+      type: "TRIANGLE",
+      noClamping: false
+    }, {
+      x: true,
+      y: true
+    })
     // blink color intensity with a 75% duty cycle square wavefor all color channels and do clamp
     /*addColorModulatorToPipelineGeometry(pgem, {
       amplitude: 1.,

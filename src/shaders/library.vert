@@ -17,10 +17,11 @@ struct function_mapper {
     int generate_polygon;
     int stretch_coordinates;
     int wiggle_vertex;
+    int modulate_op;
 };
 
 // function map
-const function_mapper function_map = function_mapper(1, 2, 3);
+const function_mapper function_map = function_mapper(1, 2, 3, 4);
 
 // global parameters
 
@@ -30,6 +31,9 @@ uniform FunctionCall[VS_STACK_SIZE] f_vert_pipeline; // the function pipeline: t
 uniform mat4 u_model;       // transform of the shape
 uniform mat4 u_camera;      // where the camera is, where it looks at
 uniform mat4 u_projection;  // effects applied on the camera
+
+// debug stuff
+uniform bool u_check_parameters;
 
 // time
 uniform float u_time;
@@ -51,6 +55,9 @@ float hash11(float p)
     p *= p + p;
     return fract(p);
 }
+
+const vec4 zerof_vec4 = vec4(0., 0., 0., 0.);
+const vec4 onef_vec4 = vec4(1., 1., 1., 1.);
 
 // be mindful that functions should not do geometry transforms on their own unless you really want to go wonky...
 // function related defines go on top of the function they are here to help with syntax expression
@@ -94,31 +101,163 @@ bool generate_polygon(int flags, vec4 arg1, vec4 _arg2, vec4 _arg3) {
     return true;
 }
 
-#define factors vec4(arg1.xyz, 1)
 bool stretch_coordinates(int flags, vec4 arg1, vec4 arg2, vec4 arg3) {
-    gl_Position = gl_Position * factors;
+    gl_Position = gl_Position * vec4(arg1.xyz, 1);
     return true;
 }
 
-#define offset (arg1.y)
+#define wiggle_offset (arg1.y)
 #define mul (arg1.x)
 bool wiggle_vertex(int flags, vec4 arg1, vec4 arg2, vec4 arg3) {
-    float wiggleFactor = (hash11(u_time) + offset) * mul;
+    float wiggleFactor = (hash11(u_time) + wiggle_offset) * mul;
     gl_Position += vec4(wiggleFactor, wiggleFactor, wiggleFactor, wiggleFactor);
     return true;
-}   
+}
+
+// modulators
+// gives a normalized sinewave (0 < v < 1, not -1 < v < 1)
+float sinewave_value(float cur_time, float period, float amplitude, float phase_shift, float offset) {
+    // Calculate the phase of the sine wave with phase shift
+    float phase = mod(fract((cur_time / period) + phase_shift), 1.);
+    // Calculate the sine wave value and apply amplitude
+    float sinValue = amplitude * ((sin(2.0 * PI * phase) + 1.) / 2.) + offset;
+    return sinValue;
+}
+
+float trianglewave_value(float cur_time, float period, float amplitude, float phase_shift, float offset) {
+    if (period == 0.) {
+        return 0.;
+    }
+    // Calculate the phase of the triangle wave with phase shift
+    float phase = fract((cur_time / period) + 0.5 + phase_shift); 
+    // Calculate the triangle wave value
+    float triangleValue = abs(2. * phase - 1.);
+    // Scale by amplitude
+    triangleValue *= amplitude;
+
+    return triangleValue + offset;
+}
+
+// square wave 
+float squarewave_value(float cur_time, float period, float amplitude, float phase_shift, float offset, float duty_cycle) {
+    // Calculate the phase of the square wave with phase shift
+    float phase = fract((cur_time / period) + phase_shift);
+
+    // Calculate the square wave value and apply amplitude
+    float squareValue = (float(phase < duty_cycle) + offset)  * amplitude;
+
+    return squareValue;
+}
+
+// flags for modulation
+#define MODULATE_X                      1
+#define MODULATE_Y                      2
+#define MODULATE_Z                      4
+#define MODULATE_W                      8
+#define APPLY_SIN                       32
+#define APPLY_SQU                       64
+#define APPLY_TRI                       128
+#define OP_MULTIPLY                     256
+#define CLAMPING                     512
+#define DO_MODULATE_X                   ((MODULATE_X & flags) > 0)
+#define DO_MODULATE_Y                   ((MODULATE_Y & flags) > 0)
+#define DO_MODULATE_Z                   ((MODULATE_Z & flags) > 0)
+#define DO_MODULATE_W                   ((MODULATE_W & flags) > 0)
+#define DO_MULTIPLY                     ((OP_MULTIPLY & flags) > 0)
+#define DO_SIN                          ((APPLY_SIN & flags) > 0)
+#define DO_SQU                          ((APPLY_SQU & flags) > 0)
+#define DO_TRI                          ((APPLY_TRI & flags) > 0)
+#define DO_CLAMP                    ((CLAMPING & flags) > 0)
+
+void errorVertex(vec3 pos1, vec3 pos2) {
+    int sli = gl_VertexID % 30;
+    if (sli  < 10)
+            gl_Position.xyz = pos1;
+    else if (sli < 20)
+            gl_Position.xyz = pos2;
+    else 
+        gl_Position.xyz = vec3(pos1.x, pos2.y, 0.5 * pos1.z + 0.5 * pos2.z);
+}
+
+// display errors in case of invalid parameters
+bool modulate_op_check_parameters(int flags, vec4 arg1, vec4 arg2, vec4 arg3) {
+    bool isOk = true;
+    if (DO_SIN && DO_SQU || DO_SIN && DO_TRI || DO_TRI && DO_SQU) {
+        errorVertex(vec3(0., 0., 1.), vec3(.1, .1, 1.));
+        isOk = false;
+    }
+    else if (arg1.x == 0.) {
+        errorVertex(vec3(.9, .9, 1.), vec3(1., 1., 1.));
+        isOk = false;
+    }
+    return isOk;
+}
+
+// modulate parameters through a given operator
+// flags: as defined up there
+// parameters:  arg1: [period, amplitude, phase shift, offset]
+//              arg2: [duty cycle (for square wave), x, x, x]
+//              arg3: [x, x, x, x]
+bool modulate_op(int flags, vec4 arg1, vec4 arg2, vec4 arg3) {
+    float modulation;
+    if (DO_SIN)
+        modulation = sinewave_value(u_time, arg1.x, arg1.y, arg1.z, arg1.a  );
+    else if (DO_SQU)
+        modulation = squarewave_value(u_time, arg1.x, arg1.y, arg1.z, arg1.a, arg2.x);
+    else if (DO_TRI)
+        modulation = trianglewave_value(u_time, arg1.x, arg1.y, arg1.z, arg1.a);
+    if (DO_MODULATE_X) {
+        if (DO_MULTIPLY) gl_Position.x *= modulation;
+        else gl_Position.x += modulation;
+    }
+    if (DO_MODULATE_Y) {
+        if (DO_MULTIPLY) gl_Position.y *= modulation;
+        else gl_Position.y += modulation;
+    }
+    if (DO_MODULATE_Z) {
+        if (DO_MULTIPLY) gl_Position.z *= modulation;
+        else gl_Position.z += modulation;
+    }
+    if (DO_MODULATE_W) {
+        if (DO_MULTIPLY) gl_Position.w *= modulation;
+        else gl_Position.w += modulation;
+    }
+    if (DO_CLAMP) {
+        gl_Position = clamp(gl_Position, -onef_vec4, onef_vec4);
+    }
+    return true;
+}
+
+
 void main() {
     bool cont = false;
+    FunctionCall fc;
     for (int i = 0; i < VS_STACK_SIZE; i++) {
-        if (function_map.generate_polygon == f_vert_pipeline[i].f_id) {
-            cont = generate_polygon(f_vert_pipeline[i].flags, f_vert_pipeline[i].arg1, f_vert_pipeline[i].arg2, f_vert_pipeline[i].arg3);
-        } else if (function_map.stretch_coordinates == f_vert_pipeline[i].f_id) {
-            cont = stretch_coordinates(f_vert_pipeline[i].flags, f_vert_pipeline[i].arg1, f_vert_pipeline[i].arg2, f_vert_pipeline[i].arg3);
-        } else if (function_map.wiggle_vertex == f_vert_pipeline[i].f_id) {
-            cont = wiggle_vertex(f_vert_pipeline[i].flags, f_vert_pipeline[i].arg1, f_vert_pipeline[i].arg2, f_vert_pipeline[i].arg3);
-        }
-        else {
+        fc = f_vert_pipeline[i];
+        switch(fc.f_id) {
+            case function_map.generate_polygon:
+            cont = generate_polygon(fc.flags, fc.arg1, fc.arg2, fc.arg3);
+            break;
+            case function_map.stretch_coordinates:
+            cont = stretch_coordinates(fc.flags, fc.arg1, fc.arg2, fc.arg3);
+            break;
+            case function_map.wiggle_vertex:
+            cont = wiggle_vertex(fc.flags, fc.arg1, fc.arg2, fc.arg3);
+            break;
+            case function_map.modulate_op:
+            if (u_check_parameters) {
+                cont = modulate_op_check_parameters(fc.flags, fc.arg1, fc.arg2, fc.arg3);
+                if (!cont) break;
+            }
+            cont = modulate_op(fc.flags, fc.arg1, fc.arg2, fc.arg3);
+            break;
+            case 0:
             cont = false;
+            break;
+            default:
+            cont = false;
+            errorVertex(vec3(0.5, 0.5, 1.), vec3(0.7, 0.7, 1.));
+            break;
         }
         if (!cont) {
             break;
