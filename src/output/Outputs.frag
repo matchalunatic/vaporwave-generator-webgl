@@ -30,9 +30,10 @@ RegisteredValues registered_values;
 
 struct function_mapper {
    int offset_channels;
+   int invert_colors;
 };
 
-const function_mapper function_map = function_mapper(10);
+const function_mapper function_map = function_mapper(10, 20);
 const vec4 zerocolor = vec4(0., 0., 0., 0.);
 void circular_x(vec2 inlet_coordinates) {
    float intpart;
@@ -171,6 +172,40 @@ bool channel_offset(int flags, vec4 arg1, vec4 arg2, vec4 arg3) {
    return true;
 }
 
+// set flag bit 1 to 1 to skip 
+// flag bit 2: skip R
+// flag bit 3: skip G
+// flag bit 4: skip B
+// flag bit 5: swap R / G
+// flag bit 6: swap R / B
+// flag bit 7: swap G / B
+bool invert_colors(int flags, vec4 arg1, vec4 arg2, vec4 arg3) {
+   if ((flags & 1) > 0) {
+      return true;
+   }
+   vec4 o_color = output_color;
+   output_color.rgb = vec3(1., 1., 1.) - output_color.rgb;
+   if ((flags & 1 << 1) > 0) {
+      output_color.r = o_color.r;
+   }
+   if ((flags & 1 << 2) > 0) {
+      output_color.g = o_color.g;
+   }
+   if ((flags & 1 << 3) > 0) {
+      output_color.b = o_color.b;
+   }
+   if ((flags & 1 << 4) > 0) {
+      output_color.rg = output_color.gr;
+   }
+   if ((flags & 1 << 5) > 0) {
+      output_color.rb = output_color.br;
+   }
+   if ((flags & 1 << 6) > 0) {
+      output_color.gb = output_color.gb;
+   }
+
+   return true;
+}
 
 void main() {
    // normalize texcoords (0,0) to (1,1) to clip space (-1,-1) to (1,1): * 2 - (1, 1)
@@ -210,6 +245,8 @@ void main() {
          case function_map.offset_channels:
          cont = channel_offset(fc.flags, fc.arg1, fc.arg2, fc.arg3);
          break;
+         case function_map.invert_colors:
+         cont = invert_colors(fc.flags, fc.arg1, fc.arg2, fc.arg3);
          default:
          cont = false;
          break;

@@ -98,8 +98,12 @@ class Outputs {
 
   private constructor(gl: WebGL2RenderingContext, params?: OutputParameters) {
     this.gl = gl;
-    this.programInfoBuilder = () => { return twgl.createProgramInfo(this.gl, [vs, fs]) };
-    this.bufferInfoBuilder = () => { return twgl.createBufferInfoFromArrays(this.gl, positionsArray) };
+    this.programInfoBuilder = () => {
+      return twgl.createProgramInfo(this.gl, [vs, fs]);
+    };
+    this.bufferInfoBuilder = () => {
+      return twgl.createBufferInfoFromArrays(this.gl, positionsArray);
+    };
     this.renderParams = Object.assign(
       {},
       DefaultOutputParameters,
@@ -189,6 +193,7 @@ class Outputs {
     const indirectOuts = this.outs.filter((v: BufferedOutput) => {
       return v.targetOutput !== null;
     });
+    /*
     // identify the right order for rendering outputs
     let renderingOrder: valid_fb_non_null[] = [];
 
@@ -227,7 +232,8 @@ class Outputs {
       out.render();
       this.pop();
     }
-    /* const renderOrder = [indirectOuts, directOuts];
+    */
+    const renderOrder = [indirectOuts, directOuts];
     let rendered: valid_fb_non_null[] = [];
     const subren = (o: BufferedOutput): void => {
       if (this.registeredObjects[o.ndx] === 0 || o.ndx in rendered) {
@@ -238,7 +244,8 @@ class Outputs {
       if (!this.push(o.targetOutput)) {
         throw Error("Could not push target output");
       }
-      o.render();
+      const ar = o.targetOutput === null;
+      o.render(ar);
       rendered.push(o.ndx);
       this.pop();
     };
@@ -247,7 +254,7 @@ class Outputs {
         const o = ocol[i];
         subren(o);
       }
-    }*/
+    }
   };
 
   public wrapRender = (): void => {
@@ -460,7 +467,7 @@ class BufferedOutput implements OutputClient {
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
   };
 
-  public render = (): void => {
+  public render = (aspectRatio?: boolean): void => {
     this.updateCamera();
     let uniforms = {
       u_backbuffer: this.framebuffer.attachments[0],
@@ -468,7 +475,7 @@ class BufferedOutput implements OutputClient {
       u_depth: this.ndx,
       u_camera: this.camHolder.u_camera,
       u_projection: this.camHolder.u_projection,
-      u_aspectRatio: AppState.appHeight / AppState.appWidth,
+      u_aspectRatio: aspectRatio ? AppState.appHeight / AppState.appWidth : 1,
       u_model: this.u_model,
       u_xBorderColor: this.xBorderColor,
       u_yBorderColor: this.yBorderColor,
@@ -478,7 +485,7 @@ class BufferedOutput implements OutputClient {
     };
     // console.log(`${this.ndx}: ${this.framebuffer.attachments}`);
     this.gl.useProgram(this.programInfo.program);
-    
+
     twgl.setUniforms(this.programInfo, uniforms);
 
     twgl.setBuffersAndAttributes(this.gl, this.programInfo, this.bufferInfo);
@@ -506,6 +513,38 @@ type ChannelOffsetParameters = {
 };
 
 const CHANNEL_OFFSET = 10;
+const INVERT_COLORS = 20;
+
+type InvertColorsParms = {
+  skip?: boolean;
+  skipR?: boolean;
+  skipG?: boolean;
+  skipB?: boolean;
+  swapRG?: boolean;
+  swapRB?: boolean;
+  swapGB?: boolean;
+};
+const addInvertColorsToOutput = (
+  bo: BufferedOutput,
+  parms: InvertColorsParms
+): boolean => {
+  let fcall_frag: FunctionCall = new FunctionCall({
+    f_id: INVERT_COLORS,
+    flags:
+      0 |
+      (parms.skip ? 1 << 0 : 0) |
+      (parms.skipR ? 1 << 1 : 0) |
+      (parms.skipG ? 1 << 2 : 0) |
+      (parms.skipB ? 1 << 3 : 0) |
+      (parms.swapRG ? 1 << 4 : 0) |
+      (parms.swapRB ? 1 << 5 : 0) |
+      (parms.swapGB ? 1 << 6 : 0),
+    arg1: [0, 0, 0, 0],
+    arg2: [0, 0, 0, 0],
+    arg3: [0, 0, 0, 0],
+  });
+  return bo.addFSCall(fcall_frag);
+};
 const addChannelOffsetToOutput = (
   bo: BufferedOutput,
   parm: ChannelOffsetParameters
@@ -534,5 +573,11 @@ const addChannelOffsetToOutput = (
 
 interface BufferedOutput extends TransformablePrimitive {}
 applyMixins(BufferedOutput, [TransformablePrimitive]);
-export { Outputs, addChannelOffsetToOutput,CHANNEL_OFFSET };
+export {
+  Outputs,
+  addChannelOffsetToOutput,
+  CHANNEL_OFFSET,
+  addInvertColorsToOutput,
+  INVERT_COLORS,
+};
 export type { valid_fb, valid_fb_non_null, OutputParameters, OutputClient };

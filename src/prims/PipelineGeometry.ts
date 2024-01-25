@@ -133,6 +133,7 @@ class PipelineGeometry implements RenderableType {
       u_check_parameters: AppState.debugShaders(time),
       f_vert_pipeline: this.vsCalls.toBasic(),
       f_frag_pipeline: this.fsCalls.toBasic(),
+      u_aspectRatio: AppState.appHeight / AppState.appWidth,
     };
     twgl.setUniforms(this.programInfo, uniforms);
 
@@ -178,11 +179,12 @@ function addPolygonToPipelineGeometry(
   renderCenter: boolean,
   edgeColor: Color,
   fillColor: Color,
-  edgeSize: number
+  edgeSize: number,
+  noAspectFromContext?: boolean,
 ): boolean {
   const fcall_vert: FunctionCall = new FunctionCall({
     f_id: GENERATE_POLYGON,
-    flags: renderCenter ? 0b1 : 0b0,
+    flags: 0 | (renderCenter ? 1 << 0 : 0) | (noAspectFromContext ? 0 : 1 << 1),
     arg1: [sides, AppState.appHeight / AppState.appWidth],
     arg2: [],
     arg3: [],

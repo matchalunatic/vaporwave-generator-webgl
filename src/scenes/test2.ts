@@ -7,7 +7,13 @@ import {
   createPerspectiveCamera,
   getCamera,
 } from "../utils/gl";
-import { CHANNEL_OFFSET, Outputs, addChannelOffsetToOutput } from "../output/Outputs";
+import {
+  CHANNEL_OFFSET,
+  INVERT_COLORS,
+  Outputs,
+  addChannelOffsetToOutput,
+  addInvertColorsToOutput,
+} from "../output/Outputs";
 import * as twgl from "twgl.js";
 import { pickRandomElement, polarRandom } from "../utils/misc";
 import { pickRandomColor, Color, DarkRed, PureWhite } from "../utils/colors";
@@ -36,21 +42,24 @@ const buildObjects = (): void => {
   let sidesCount: number = 0;
   const out0 = outputs.getOutput(0);
   const out1 = outputs.getOutput(1);
-  const out2 = outputs.getOutput(2);
-  const out3 = outputs.getOutput(3);
-  console.log(out0, out1, out2, out3);
 
   out0.setOutput(out1.ndx);
-  out1.setOutput(out2.ndx);
-  out2.setOutput(out3.ndx);
-  out3.setOutput(null);
+  out1.setOutput(null);
   while (shapeCount > 0) {
     shapeCount -= 1;
     sidesCount = 5;
     let pgem = new PipelineGeometry({ gl: glContext });
     pgem.setCamera("mobile-perspective");
     pgem.setOutput(0);
-    addPolygonToPipelineGeometry(pgem, sidesCount, true, DarkRed, PureWhite, 0.01);
+    addPolygonToPipelineGeometry(
+      pgem,
+      sidesCount,
+      true,
+      DarkRed,
+      PureWhite,
+      0.01,
+      true
+    );
     addStretchCoordinatesToPipelineGeometry(pgem, twgl.v3.create(0.8, 0.8, 1));
     addOffsetCoordinatesToPipelineGeometry(
       pgem,
@@ -66,14 +75,15 @@ const buildObjects = (): void => {
       b: true,
       a: false,
     },
-    blendMode: 'SUB',
+    blendMode: "SUB",
     moveAmount: MOVE_AMOUNT,
     substractOriginal: true,
-    offsetDirection: [0.125, 0.],
+    offsetDirection: [0.125, 0],
     multiplyMovement: false,
     circular: true,
   });
-
+  //addInvertColorsToOutput(out0);
+  addInvertColorsToOutput(out1, {});
 };
 
 const buildCameras = (): void => {
@@ -97,8 +107,8 @@ const buildCameras = (): void => {
 
 const updateObjects = (time: number): void => {
   const outputs = Outputs.getOutputs(glContext);
-  outputs.setCamera(3, "orthographic-fixed");
-  outputs.setCamera(2, "orthographic-fixed");
+  //outputs.setCamera(3, "orthographic-fixed");
+  //outputs.setCamera(2, "orthographic-fixed");
   outputs.setCamera(1, "orthographic-fixed");
   outputs.setCamera(0, "orthographic-fixed");
 };
@@ -119,35 +129,69 @@ const launchAsyncHandler = (): void => {
   // changeColor(3000);
   // changeSideCount(3000);
   changeOffsets(10, 0.1, 0.1);
-
+  changeInversion(1000);
   // changeCamera(10);
   // changeProportions(1);
 };
 
-const changeOffsets = async (d: number, changeAmt: number, amplitude: number) => {
+const changeInversion = async (d: number) => {
+  const out = Outputs.getOutputs(glContext).getOutput(1);
+  const maskValues = {
+    1: 0.1,
+    2: 0.5,
+    4: 0.5,
+    8: 0.5,
+    16: 0.2,
+    32: 0.2,
+    64: 0.2,
+  };
+  while (true) {
+    await delay(d);
+    for (let i = 0; i < out.fsCalls.length; i++) {
+      const fc = out.fsCalls[i];
+      if (fc.f_id !== INVERT_COLORS) {
+        continue;
+      }
+      Object.entries(maskValues).forEach(([k, v]) => {
+        if (Math.random() < v) {
+          fc.flags = fc.flags | parseInt(k);
+        } else {
+          fc.flags = fc.flags & ~parseInt(k);
+        }
+      });
+    }
+  }
+};
+const changeOffsets = async (
+  d: number,
+  changeAmt: number,
+  amplitude: number
+) => {
   const out = Outputs.getOutputs(glContext).getOutput(1);
   let originCoordinates: twgl.v3.Vec3[] = [];
   for (let i = 0; i < out.fsCalls.length; i++) {
     originCoordinates[i] = twgl.v3.create(...out.fsCalls[i].arg1.slice(0, 3));
   }
   let accum = 0;
-  const amplitudeChange = 0.001;
+  const amplitudeChange = 0.0;
   while (true) {
-
     await delay(d);
     amplitude += amplitudeChange;
     for (let i = 0; i < out.fsCalls.length; i++) {
-
       let fc = out.fsCalls[i];
       if (fc.f_id != CHANNEL_OFFSET) {
         continue;
       }
 
       // channel offset
-      let v = twgl.v3.create(Math.cos(accum) * amplitude, Math.sin(accum) * amplitude, MOVE_AMOUNT);
+      let v = twgl.v3.create(
+        Math.cos(accum) * amplitude,
+        Math.sin(accum) * amplitude,
+        MOVE_AMOUNT
+      );
       accum += changeAmt;
-      fc.arg1 = [...twgl.v3.add(v, originCoordinates[i]), 0.];
-      fc.arg2 = [Math.sin(accum * 3) - 0.5, 0., 0., 0.];
+      fc.arg1 = [...twgl.v3.add(v, originCoordinates[i]), 0];
+      fc.arg2 = [Math.sin(accum / 3) / 2, 0, 0, 0];
     }
   }
 };

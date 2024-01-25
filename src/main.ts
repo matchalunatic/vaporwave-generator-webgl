@@ -45,6 +45,10 @@ function main() {
     scene.buildCameras();
     scene.buildObjects();
     const animate = (time: number): void => {
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      twgl.resizeCanvasToDisplaySize(canvas);
+      AppState.appWidth = canvas.width;
+      AppState.appHeight = canvas.height;
       for (let renderable of scene.renderObjs) {
         renderable.render(time);
       }

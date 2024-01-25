@@ -37,7 +37,7 @@ RegisteredValues registered_values;
 uniform mat4 u_model;       // transform of the shape
 uniform mat4 u_camera;      // where the camera is, where it looks at
 uniform mat4 u_projection;  // effects applied on the camera
-
+uniform float u_aspectRatio;
 // debug stuff
 uniform bool u_check_parameters;
 
@@ -68,7 +68,7 @@ const vec4 onef_vec4 = vec4(1., 1., 1., 1.);
 // be mindful that functions should not do geometry transforms on their own unless you really want to go wonky...
 // function related defines go on top of the function they are here to help with syntax expression
 #define u_sides arg1.x
-#define u_aspectRatio arg1.y
+#define p_aspectRatio (arg1.y)
 #define b_renderCenters (((flags) & 1) == 1)
 
 bool generate_polygon(int flags, vec4 arg1, vec4 _arg2, vec4 _arg3) {
@@ -84,8 +84,11 @@ bool generate_polygon(int flags, vec4 arg1, vec4 _arg2, vec4 _arg3) {
     float angleMul = step(0.5, float(vertexId)) + 1.0 + float(sliceId);
     // we compute coordinates r, theta and we nullify through mult as needed
     float ang = angleMul * oneAngle;
+    vec4 aspectVec = vec4(p_aspectRatio, 1.0, 1.0, 1.0);
+    if ((flags & (1 << 1)) > 0) {
+        aspectVec.x = u_aspectRatio;
+    }
     vec2 pos = vec2(cos(ang), sin(ang));
-    vec4 aspectVec = vec4(u_aspectRatio, 1.0, 1.0, 1.0);
     gl_Position = vec4(pos * mult, 0.0, 1.0) * aspectVec;
     switch (vertexId) {
         case 0:
