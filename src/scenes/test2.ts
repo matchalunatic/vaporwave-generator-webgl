@@ -72,7 +72,7 @@ const buildObjects = (): void => {
     offsetChannels: {
       r: true,
       g: false,
-      b: true,
+      b: false,
       a: false,
     },
     blendMode: "SUB",
@@ -82,6 +82,50 @@ const buildObjects = (): void => {
     multiplyMovement: false,
     circular: true,
   });
+  addChannelOffsetToOutput(out1, {
+    offsetChannels: {
+      r: true,
+      g: false,
+      b: false,
+      a: false,
+    },
+    blendMode: "SUB",
+    moveAmount: MOVE_AMOUNT,
+    substractOriginal: true,
+    offsetDirection: [0.125, 0],
+    multiplyMovement: false,
+    circular: true,
+  });
+
+  addChannelOffsetToOutput(out1, {
+    offsetChannels: {
+      r: false,
+      g: true,
+      b: false,
+      a: false,
+    },
+    blendMode: "ADD",
+    moveAmount: MOVE_AMOUNT,
+    substractOriginal: true,
+    offsetDirection: [-1, 1],
+    multiplyMovement: true,
+    circular: true,
+  });
+  addChannelOffsetToOutput(out1, {
+    offsetChannels: {
+      r: false,
+      g: false,
+      b: true,
+      a: false,
+    },
+    blendMode: "MUL",
+    moveAmount: MOVE_AMOUNT,
+    substractOriginal: true,
+    offsetDirection: [1, -1],
+    multiplyMovement: true,
+    circular: true,
+  });
+
   //addInvertColorsToOutput(out0);
   addInvertColorsToOutput(out1, {});
 };
@@ -128,7 +172,7 @@ const changeSideCount = async (period: number) => {
 const launchAsyncHandler = (): void => {
   // changeColor(3000);
   // changeSideCount(3000);
-  changeOffsets(10, 0.1, 0.1);
+  changeOffsets(10, 0.001, 0.001, 0.005, 0.5);
   changeInversion(1000);
   // changeCamera(10);
   // changeProportions(1);
@@ -162,10 +206,26 @@ const changeInversion = async (d: number) => {
     }
   }
 };
+
+const randomMovementVector = (amplitude: number) => {
+  const v = twgl.v3.create(Math.random() * 2 - 1, Math.random() * 2 - 1, 0);
+  twgl.v3.normalize(v, v);
+  return twgl.v3.mulScalar(v, amplitude);
+}
+
+const randomMovement1D = (amplitude: number, offset: number) => {
+  const v = twgl.v3.create(Math.random() * 2 - 1, 0, 0);
+  twgl.v3.normalize(v, v);
+  const toAdd = twgl.v3.create(offset, 0, 0);
+  return twgl.v3.add(twgl.v3.mulScalar(v, amplitude), toAdd);
+}
+
 const changeOffsets = async (
   d: number,
   changeAmt: number,
-  amplitude: number
+  amplitude: number,
+  largeChP: number,
+  largeChS: number,
 ) => {
   const out = Outputs.getOutputs(glContext).getOutput(1);
   let originCoordinates: twgl.v3.Vec3[] = [];
@@ -178,20 +238,17 @@ const changeOffsets = async (
     await delay(d);
     amplitude += amplitudeChange;
     for (let i = 0; i < out.fsCalls.length; i++) {
-      let fc = out.fsCalls[i];
+      const fc = out.fsCalls[i];
       if (fc.f_id != CHANNEL_OFFSET) {
         continue;
       }
-
+      if (Math.random() < largeChP) {
+        originCoordinates[i] = randomMovementVector(largeChS);
+      }
       // channel offset
-      let v = twgl.v3.create(
-        Math.cos(accum) * amplitude,
-        Math.sin(accum) * amplitude,
-        MOVE_AMOUNT
-      );
       accum += changeAmt;
-      fc.arg1 = [...twgl.v3.add(v, originCoordinates[i]), 0];
-      fc.arg2 = [Math.sin(accum / 3) / 2, 0, 0, 0];
+      fc.arg1 = [...twgl.v3.add(randomMovementVector(amplitude), originCoordinates[i]), 0];
+      fc.arg2 = [...randomMovement1D(accum / 1000, fc.arg2[0]), 0];
     }
   }
 };
