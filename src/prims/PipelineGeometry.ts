@@ -13,61 +13,11 @@ import {
 import { applyMixins } from "../utils/misc";
 import { AppState } from "../utils/appState";
 import { Color, pickRandomColor } from "../utils/colors";
+import { FunctionCall, FunctionCallsArray, FunctionCallType } from "./FunctionCall";
 
 type MAX_CALLS_PER_PIPELINE = 16;
 const MAX_CALLS_PER_PIPELINE = 16;
 const UNITY_QUAD = [-1, -1, 0, -1, 1, 0, 1, 1, 0, 1, 1, 0, -1, -1, 0, 1, -1, 0];
-
-interface FunctionCall {
-  f_id: number;
-  flags: number;
-  arg1: Array<number>;
-  arg2: Array<number>;
-  arg3: Array<number>;
-}
-
-class FunctionCallsArray extends Array<FunctionCall> {
-  toBasic() {
-    let out = [];
-    for (let v of this) {
-      out.push(v);
-    }
-    return out;
-  }
-}
-type FunctionCallType = FunctionCall;
-class FunctionCall {
-  constructor(p: FunctionCallType) {
-    this.f_id = p.f_id;
-    this.flags = p.flags;
-    this.arg1 = Array<number>(4);
-    this.arg2 = Array<number>(4);
-    this.arg3 = Array<number>(4);
-    for (let i = 0; i < 4; i++) {
-      if (p.arg1.length > i) {
-        this.arg1[i] = p.arg1[i];
-      }
-      if (p.arg2.length > i) {
-        this.arg2[i] = p.arg2[i];
-      }
-      if (p.arg3.length > i) {
-        this.arg3[i] = p.arg3[i];
-      }
-    }
-  }
-  toBasic() {
-    this.arg1.length = 4;
-    this.arg2.length = 4;
-    this.arg3.length = 4;
-    return {
-      f_id: this.f_id,
-      flags: this.flags,
-      arg1: this.arg1,
-      arg2: this.arg2,
-      arg3: this.arg3,
-    };
-  }
-}
 
 interface PipelineGeometryParameters {
   vertexShaderCalls?: LengthArray<FunctionCall, MAX_CALLS_PER_PIPELINE>;
@@ -169,7 +119,6 @@ class PipelineGeometry implements RenderableType {
       throw Error("Outputs are not intialized, exiting");
     }
     this.parameters.gl.useProgram(this.programInfo.program);
-    this.outputManager.push(this.output);
     twgl.setBuffersAndAttributes(
       this.parameters.gl,
       this.programInfo,
@@ -187,8 +136,10 @@ class PipelineGeometry implements RenderableType {
     };
     twgl.setUniforms(this.programInfo, uniforms);
 
+    this.outputManager.push(this.output);
     this.draw();
     this.outputManager.pop();
+
   }
 
   draw(): void {
@@ -215,6 +166,7 @@ const GENERATE_POLYGON = 1;
 const STRETCH_COORDINATES = 2;
 const WIGGLE_VERTEX = 3;
 const MODULATE_VERTEX = 4;
+const OFFSET_COORDINATES = 5;
 
 // fragment shader constants
 const COLOR_POLYGON = 1;
@@ -231,10 +183,10 @@ function addPolygonToPipelineGeometry(
   const fcall_vert: FunctionCall = new FunctionCall({
     f_id: GENERATE_POLYGON,
     flags: renderCenter ? 0b1 : 0b0,
-    arg1: [sides],
+    arg1: [sides, AppState.appHeight / AppState.appWidth],
     arg2: [],
     arg3: [],
-  } as unknown as FunctionCallType);
+  });
 
   const fcall_frag: FunctionCall = new FunctionCall({
     f_id: COLOR_POLYGON,
@@ -242,12 +194,13 @@ function addPolygonToPipelineGeometry(
     arg1: [edgeSize],
     arg2: edgeColor.toArray(),
     arg3: fillColor.toArray(),
-  } as unknown as FunctionCallType);
+  });
   const drawCb: DrawCallbackType = (
     gl: WebGL2RenderingContext,
     ctx: PipelineGeometry
   ): void => {
     // console.log(ctx.programInfo.uniformSetters)
+    gl.disable(gl.STENCIL_TEST);
     twgl.drawBufferInfo(
       gl,
       ctx.bufferInfo,
@@ -255,6 +208,8 @@ function addPolygonToPipelineGeometry(
       fcall_vert.arg1[0] * 3,
       0
     );
+    gl.enable(gl.STENCIL_TEST);
+
   };
   let res = true;
   res = res && p.addVSCall(fcall_vert);
@@ -267,13 +222,27 @@ function addStretchCoordinatesToPipelineGeometry(
   p: PipelineGeometry,
   factors: twgl.v3.Vec3
 ): boolean {
-  const fcall_vert = {
+  const fcall_vert = new FunctionCall({
     f_id: STRETCH_COORDINATES,
     arg1: [...factors.values(), 1],
     arg2: [],
     arg3: [],
     flags: 0,
-  } as unknown as FunctionCall;
+  });
+  return p.addVSCall(fcall_vert);
+}
+
+function addOffsetCoordinatesToPipelineGeometry(
+  p: PipelineGeometry,
+  factors: twgl.v3.Vec3
+): boolean {
+  const fcall_vert = new FunctionCall({
+    f_id: OFFSET_COORDINATES,
+    arg1: [...factors.values(), 0],
+    arg2: [],
+    arg3: [],
+    flags: 0,
+  });
   return p.addVSCall(fcall_vert);
 }
 
@@ -282,12 +251,13 @@ function addWiggleVertexToPipelineGeometry(
   offset: number = -0.5,
   factor: number = 0.01
 ): boolean {
-  const fcall_vert = {
+  const fcall_vert = new FunctionCall({
     f_id: WIGGLE_VERTEX,
+    flags: 0,
     arg1: [factor, offset, 0, 0],
     arg2: [],
     arg3: [],
-  } as unknown as FunctionCall;
+  });
   return p.addVSCall(fcall_vert);
 }
 
@@ -320,13 +290,13 @@ function addColorModulatorToPipelineGeometry(
   parm: ModulationParameters,
   colorTargets: ColorModulationTargets
 ) {
-  let fcall_frag = {
+  let fcall_frag = new FunctionCall({
     f_id: MODULATE_COLOR,
     flags: 0,
     arg1: [0.0, 0, 0, 0],
     arg2: [0.0, 0, 0, 0],
     arg3: [0.0, 0, 0, 0],
-  } as unknown as FunctionCall;
+  } as unknown as FunctionCall);
   let flags = 0;
 
   const tg = [parm.period, parm.amplitude, parm.phase, parm.offset];
@@ -357,7 +327,6 @@ function addColorModulatorToPipelineGeometry(
   flags |= colorTargets.b ? 4 : 0;
   flags |= colorTargets.a ? 8 : 0;
   fcall_frag.flags = flags;
-  console.log(fcall_frag);
   return p.addFSCall(fcall_frag);
 }
 
@@ -366,13 +335,13 @@ function addVertexModulatorToPipelineGeometry(
   parm: ModulationParameters,
   colorTargets: VertexModulationShaders
 ) {
-  let fcall_vert = {
+  let fcall_vert = new FunctionCall({
     f_id: MODULATE_VERTEX,
     flags: 0,
     arg1: [0.0, 0, 0, 0],
     arg2: [0.0, 0, 0, 0],
     arg3: [0.0, 0, 0, 0],
-  } as unknown as FunctionCall;
+  });
   let flags = 0;
 
   const tg = [parm.period, parm.amplitude, parm.phase, parm.offset];
@@ -403,7 +372,6 @@ function addVertexModulatorToPipelineGeometry(
   flags |= colorTargets.z ? 4 : 0;
   flags |= colorTargets.w ? 8 : 0;
   fcall_vert.flags = flags;
-  console.log("Vertex modulator", fcall_vert);
   return p.addVSCall(fcall_vert);
 }
 interface PipelineGeometry
@@ -423,5 +391,6 @@ export {
   addWiggleVertexToPipelineGeometry,
   addColorModulatorToPipelineGeometry,
   addVertexModulatorToPipelineGeometry,
+  addOffsetCoordinatesToPipelineGeometry,
 };
 export type { PipelineGeometryParameters };

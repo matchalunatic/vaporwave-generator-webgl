@@ -137,6 +137,26 @@ const createCamera = (
   }
 };
 
+const createOrthocam2 = (
+  name: string,
+
+): LookMatricesHolder => {
+  const newcam = twgl.m4.ortho(-1, 1, -1, 1, 0, 2);
+  const projCam = twgl.m4.scale(twgl.m4.identity(), twgl.v3.create(AppState.appWidth / AppState.appHeight, 1, 1));
+
+  camerasHolder.set(name, {
+    orthographic: true,
+    camParams: null,
+    projParams: null,
+    u_camera: newcam,
+    u_projection: projCam,
+  });
+  const setcam = camerasHolder.get(name);
+  if (!setcam) {
+    throw Error("camera could not be created")
+  }
+  return setcam;
+}
 const createOrthographicCamera = (
   name: string,
   o: OrthographicProjectionParameters | null | undefined,
@@ -259,6 +279,7 @@ export {
   defaultLookMatricesHolder as DefaultLookMatricesHolder,
   getCamera,
   createCamera,
+  createOrthocam2,
   createOrthographicCamera,
   createPerspectiveCamera,
   moveCamera,

@@ -86,7 +86,7 @@ class OutputtablePrimitive extends WithCapabilities {
       throw Error("outputManager is not initialized, will not proceed");
     }
     console.log(
-      `${this.objectId}: register output ${n} instead of ${this.output}`
+      `Object ${this.objectId}: register output ${n} instead of ${this.output}`
     );
     if (this.output !== null) {
       this.outputManager.unregisterOutput(this.output);

@@ -2,22 +2,25 @@ import { Shapes } from "../prims/Shapes";
 import { LengthArray, RenderableType, SceneType } from "../utils/baseTypes";
 import {
   createCamera,
+  createOrthocam2,
   createOrthographicCamera,
   createPerspectiveCamera,
   getCamera,
 } from "../utils/gl";
-import { Outputs } from "../output/Outputs";
+import { CHANNEL_OFFSET, Outputs, addChannelOffsetToOutput } from "../output/Outputs";
 import * as twgl from "twgl.js";
 import { pickRandomElement, polarRandom } from "../utils/misc";
-import { pickRandomColor, Color, DarkRed, Yellow } from "../utils/colors";
+import { pickRandomColor, Color, DarkRed, PureWhite } from "../utils/colors";
 import {
   PipelineGeometry,
   addColorModulatorToPipelineGeometry,
+  addOffsetCoordinatesToPipelineGeometry,
   addPolygonToPipelineGeometry,
   addStretchCoordinatesToPipelineGeometry,
   addVertexModulatorToPipelineGeometry,
   addWiggleVertexToPipelineGeometry,
 } from "../prims/PipelineGeometry";
+import { AppState } from "../utils/appState";
 const renderObjs: RenderableType[] = [];
 const cameras: string[] = [];
 let glContext: WebGL2RenderingContext;
@@ -25,172 +28,55 @@ let glContext: WebGL2RenderingContext;
 const setGlContext = (gl: WebGL2RenderingContext): void => {
   glContext = gl;
 };
+
+const MOVE_AMOUNT = 0.5;
 const buildObjects = (): void => {
+  const outputs = Outputs.getOutputs(glContext);
   let shapeCount: number = 1;
   let sidesCount: number = 0;
+  const out0 = outputs.getOutput(0);
+  const out1 = outputs.getOutput(1);
+  const out2 = outputs.getOutput(2);
+  const out3 = outputs.getOutput(3);
+  console.log(out0, out1, out2, out3);
+
+  out0.setOutput(out1.ndx);
+  out1.setOutput(out2.ndx);
+  out2.setOutput(out3.ndx);
+  out3.setOutput(null);
   while (shapeCount > 0) {
     shapeCount -= 1;
-    sidesCount = Math.floor(Math.random() * 9 + 3);
+    sidesCount = 5;
     let pgem = new PipelineGeometry({ gl: glContext });
-    pgem.setCamera("identity");
+    pgem.setCamera("mobile-perspective");
     pgem.setOutput(0);
-    addPolygonToPipelineGeometry(
+    addPolygonToPipelineGeometry(pgem, sidesCount, true, DarkRed, PureWhite, 0.01);
+    addStretchCoordinatesToPipelineGeometry(pgem, twgl.v3.create(0.8, 0.8, 1));
+    addOffsetCoordinatesToPipelineGeometry(
       pgem,
-      sidesCount,
-      true,
-      DarkRed,
-      Yellow,
-      0.01,
+      twgl.v3.create(0.125, -0.25, 0)
     );
-    /*addStretchCoordinatesToPipelineGeometry(pgem, twgl.v3.create(1, 0.5, 0.5));
-    addWiggleVertexToPipelineGeometry(pgem, -0.5, 0.005);*/
-    // multiply colors by a cosine normalized wave (but do not clamp result)
-    addColorModulatorToPipelineGeometry(pgem, {
-      amplitude: .1,
-      multiply: true,
-      offset: 0.9,
-      period: 1200,
-      phase: 0.5,
-      type: "SINE",
-      noClamping: true,
-    }, {
-      r: false,
-      g: true,
-      b: true,
-    })
-    // modulate this by a fast sine wave
-    addColorModulatorToPipelineGeometry(pgem, {
-      amplitude: .05,
-      multiply: true,
-      offset: 0.95,
-      phase: 0.,
-      period: 1.,
-      type: "SINE",
-      noClamping: true,
-    }, {
-      r: false,
-      g: true,
-      b: true,
-    })
-
-    addVertexModulatorToPipelineGeometry(pgem, {
-      amplitude: 0.5,
-      multiply: true,
-      offset: 1.,
-      phase: 0.,
-      period: 1000.,
-      type: "SINE",
-      noClamping: true,
-    }, {
-      x: true,
-      y: false,
-      z: false,
-    });
-    addVertexModulatorToPipelineGeometry(pgem, {
-      amplitude: 0.5,
-      multiply: true,
-      offset: .5,
-      phase: 0.5,
-      period: 750.,
-      type: "SINE",
-      noClamping: true,
-    }, {
-      x: false,
-      y: true,
-      z: false,
-    });
-    addVertexModulatorToPipelineGeometry(pgem, {
-      amplitude: 0.01,
-      multiply: false,
-      offset: 0.02,
-      phase: 0.,
-      period: 1000,
-      type: "TRIANGLE",
-      noClamping: false
-    }, {
-      x: true,
-      y: true
-    })
-    // blink color intensity with a 75% duty cycle square wavefor all color channels and do clamp
-    /*addColorModulatorToPipelineGeometry(pgem, {
-      amplitude: 1.,
-      multiply: false,
-      offset: -0.5,
-      period: 2000,
-      phase: 0.5,
-      dutyCycle: 0.25,
-      type: "SQUARE"
-    }, {
-      r: true,
-      g: true,
-      b: true,
-    })*/
     renderObjs.push(pgem);
+    // outputs.debug();
   }
+  addChannelOffsetToOutput(out1, {
+    offsetChannels: {
+      r: true,
+      g: false,
+      b: true,
+      a: false,
+    },
+    blendMode: 'SUB',
+    moveAmount: MOVE_AMOUNT,
+    substractOriginal: true,
+    offsetDirection: [0.125, 0.],
+    multiplyMovement: false,
+    circular: true,
+  });
+
 };
 
 const buildCameras = (): void => {
-  createPerspectiveCamera(
-    "front-perspective",
-    twgl.v3.create(0, 0, -1),
-    twgl.v3.create(0, 0, 0),
-    twgl.v3.create(0, 1, 0),
-    {
-      aspect: 1,
-      far: 1000,
-      near: 0.1,
-      fov: 90,
-    }
-  );
-  createPerspectiveCamera(
-    "left-perspective",
-    twgl.v3.create(-0.6, 0, -1),
-    twgl.v3.create(0, 0, 0),
-    twgl.v3.create(0, 1, 0),
-    {
-      aspect: 1,
-      far: 1000,
-      near: 0.1,
-      fov: 70,
-    }
-  );
-  createPerspectiveCamera(
-    "right-perspective",
-    twgl.v3.create(0.6, 0, -3),
-    twgl.v3.create(0, 0, 0),
-    twgl.v3.create(0, 1, 0),
-    {
-      aspect: 1,
-      far: 1000,
-      near: 0.1,
-      fov: 70,
-    }
-  );
-  createPerspectiveCamera(
-    "top-perspective",
-    twgl.v3.create(0, 1, -1),
-    twgl.v3.create(0, 0, 0),
-    twgl.v3.create(0, 0, -1),
-    {
-      aspect: 1,
-      far: 1000,
-      near: 0.1,
-      fov: 90,
-    }
-  );
-  createPerspectiveCamera(
-    "bottom-perspective",
-    twgl.v3.create(0, -1, -1),
-    twgl.v3.create(0, 0, 0),
-    twgl.v3.create(0, 0, 1),
-    {
-      aspect: 1,
-      far: 1000,
-      near: 0.1,
-      fov: 90,
-    }
-  );
-
   createPerspectiveCamera(
     "mobile-perspective",
     twgl.v3.create(0, 0, -1),
@@ -200,27 +86,70 @@ const buildCameras = (): void => {
       aspect: 1,
       far: 1000,
       near: 0.1,
-      fov: 90,
+      fov: 100,
     }
   );
+
+  createOrthocam2("orthographic-fixed");
   //cameras.push('front-perspective', 'left-perspective', 'right-perspective', 'top-perspective', 'bottom-perspective', 'mobile-perspective');
-  cameras.push("mobile-perspective");
+  cameras.push("mobile-perspective", "orthographic-fixed");
 };
 
 const updateObjects = (time: number): void => {
   const outputs = Outputs.getOutputs(glContext);
-  outputs.setCamera(0, "mobile-perspective");
-};
-
-const launchAsyncHandler = (): void => {
-  // changeColor(3000);
-  changeSideCount(3000);
-  // changeCamera(10);
-  // changeProportions(1);
+  outputs.setCamera(3, "orthographic-fixed");
+  outputs.setCamera(2, "orthographic-fixed");
+  outputs.setCamera(1, "orthographic-fixed");
+  outputs.setCamera(0, "orthographic-fixed");
 };
 
 const delay = (n: number): Promise<void> => {
   return new Promise<void>((resolve) => setTimeout(resolve, n));
+};
+
+const changeSideCount = async (period: number) => {
+  const geom = renderObjs[0] as PipelineGeometry;
+  while (true) {
+    await delay(period);
+    geom.vsCalls[0].arg1[0] = Math.floor(Math.random() * 5) + 3;
+  }
+};
+
+const launchAsyncHandler = (): void => {
+  // changeColor(3000);
+  // changeSideCount(3000);
+  changeOffsets(10, 0.1, 0.1);
+
+  // changeCamera(10);
+  // changeProportions(1);
+};
+
+const changeOffsets = async (d: number, changeAmt: number, amplitude: number) => {
+  const out = Outputs.getOutputs(glContext).getOutput(1);
+  let originCoordinates: twgl.v3.Vec3[] = [];
+  for (let i = 0; i < out.fsCalls.length; i++) {
+    originCoordinates[i] = twgl.v3.create(...out.fsCalls[i].arg1.slice(0, 3));
+  }
+  let accum = 0;
+  const amplitudeChange = 0.001;
+  while (true) {
+
+    await delay(d);
+    amplitude += amplitudeChange;
+    for (let i = 0; i < out.fsCalls.length; i++) {
+
+      let fc = out.fsCalls[i];
+      if (fc.f_id != CHANNEL_OFFSET) {
+        continue;
+      }
+
+      // channel offset
+      let v = twgl.v3.create(Math.cos(accum) * amplitude, Math.sin(accum) * amplitude, MOVE_AMOUNT);
+      accum += changeAmt;
+      fc.arg1 = [...twgl.v3.add(v, originCoordinates[i]), 0.];
+      fc.arg2 = [Math.sin(accum * 3) - 0.5, 0., 0., 0.];
+    }
+  }
 };
 
 const changeCamera = async (
@@ -338,14 +267,6 @@ const changeProportions = async (
     geom.vsCalls[1].arg1[0] += stepX;
     geom.vsCalls[1].arg1[1] += stepY;
     geom.vsCalls[1].arg1[2] += stepZ;
-  }
-};
-
-const changeSideCount = async (period: number) => {
-  const geom = renderObjs[0] as PipelineGeometry;
-  while (true) {
-    await delay(period);
-    geom.vsCalls[0].arg1[0] = Math.floor(Math.random() * 5) + 3;
   }
 };
 

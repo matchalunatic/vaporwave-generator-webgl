@@ -91,6 +91,7 @@ const SpringGreen = Color2.fromRGBA(0, 1, 0.749, 1.0);
 const WebGray = Color2.fromRGBA(0.502, 0.502, 0.502, 1.0);
 const Yellow = Color2.fromRGBA(1, 1, 0, 1.0);
 const YellowGreen = Color2.fromRGBA(0.749, 1, 0, 1.0);
+const PureWhite = Color2.fromRGBA(1., 1., 1., 1.);
 const TransparentZero = Color2.fromRGBA(0, 0, 0, 0);
 const AllColors = [
   Blue,
@@ -121,6 +122,7 @@ const AllColors = [
   WebGray,
   Yellow,
   YellowGreen,
+  PureWhite,
 ];
 
 const pickRandomColor = (): Color2 => {
@@ -159,6 +161,7 @@ export {
   Yellow,
   YellowGreen,
   TransparentZero,
+  PureWhite,
   AllColors,
   pickRandomColor,
   pickRandomColorFromSet,

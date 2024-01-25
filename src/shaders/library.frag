@@ -172,7 +172,6 @@ bool modulate_op(int flags, vec4 arg1, vec4 arg2, vec4 arg3) {
 }
 
 
-
 void main() {
     bool cont = false;
     FunctionCall fc;

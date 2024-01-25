@@ -12,37 +12,6 @@ import { pickRandomColor } from "./utils/colors";
 import { Scene } from "./scenes/test2";
 import { SceneType } from "./utils/baseTypes";
 import { PipelineGeometry } from "./prims/PipelineGeometry";
-const triangleWave = (
-  time: number,
-  phase: number,
-  period: number,
-  minAmplitude: number,
-  maxAmplitude: number
-): number => {
-  const normalizedPhase = ((phase % 360) + 360) % 360;
-  const normalizedTime =
-    ((time + (normalizedPhase / 360) * period) % period) / period; // Normalize time to the range [0, 1]
-
-  const triangleValue = Math.abs(2 * normalizedTime - 1); // Form a triangle wave using abs function
-
-  return minAmplitude + triangleValue * (maxAmplitude - minAmplitude);
-}
-
-function bipolarSquareWave<T> (
-  time: number,
-  phase: number,
-  period: number,
-  lowValue: T,
-  highValue: T
-): T {
-  const normalizedPhase = ((phase % 360) + 360) % 360;
-  const normalizedTime =
-    ((time + (normalizedPhase / 360) * period) % period) / period; // Normalize time to the range [0, 1]
-  if (normalizedTime < 0.5) {
-    return lowValue;
-  }
-  return highValue;
-}
 
 function main() {
   const canvas = document!.getElementById("app") as HTMLCanvasElement;
@@ -65,6 +34,7 @@ function main() {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.viewport(0, 0, canvas.width, canvas.height);
+    
     Outputs.getOutputs(gl)
   };
 
@@ -94,17 +64,10 @@ function main() {
     }
 
   }
-  const startRender = (gl: WebGL2RenderingContext): void => {
-    const outputs = Outputs.getOutputs(gl);
-    setupEnvironment(gl);
-  };
   
     if (!gl) {
     throw new Error("Late error starting GL context");
   }
-  // startRender(gl);
-  // console.log(" aaah ",new PipelineGeometry({gl: gl}))
-
   runScene(gl, Scene);
 }
 

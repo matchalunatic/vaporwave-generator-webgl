@@ -13,20 +13,26 @@ struct FunctionCall {
     vec4 arg3;
 };
 
+struct RegisteredValues {
+    float f1, f2, f3;
+    int i1, i2, i3;
+};
 struct function_mapper {
     int generate_polygon;
     int stretch_coordinates;
     int wiggle_vertex;
     int modulate_op;
+    int offset_coordinates;
 };
 
 // function map
-const function_mapper function_map = function_mapper(1, 2, 3, 4);
+const function_mapper function_map = function_mapper(1, 2, 3, 4, 5);
 
 // global parameters
 
 uniform FunctionCall[VS_STACK_SIZE] f_vert_pipeline; // the function pipeline: this contains all shader calls
 
+RegisteredValues registered_values;
 // the transforms we will apply to the geometry, these are global to the entire pipeline
 uniform mat4 u_model;       // transform of the shape
 uniform mat4 u_camera;      // where the camera is, where it looks at
@@ -80,7 +86,7 @@ bool generate_polygon(int flags, vec4 arg1, vec4 _arg2, vec4 _arg3) {
     float ang = angleMul * oneAngle;
     vec2 pos = vec2(cos(ang), sin(ang));
     vec4 aspectVec = vec4(u_aspectRatio, 1.0, 1.0, 1.0);
-    gl_Position = vec4(pos * mult, 0.0, 1.0);
+    gl_Position = vec4(pos * mult, 0.0, 1.0) * aspectVec;
     switch (vertexId) {
         case 0:
         v_to_fragment = vec4(1, 0, 0, 0);
@@ -97,12 +103,17 @@ bool generate_polygon(int flags, vec4 arg1, vec4 _arg2, vec4 _arg3) {
         }
         break;
     }
-
+    
     return true;
 }
 
 bool stretch_coordinates(int flags, vec4 arg1, vec4 arg2, vec4 arg3) {
     gl_Position = gl_Position * vec4(arg1.xyz, 1);
+    return true;
+}
+
+bool offset_coordinates(int flags, vec4 arg1, vec4 arg2, vec4 arg3) {
+    gl_Position = gl_Position + vec4(arg1.xyz, 0);
     return true;
 }
 
@@ -150,15 +161,18 @@ float squarewave_value(float cur_time, float period, float amplitude, float phas
 }
 
 // flags for modulation
-#define MODULATE_X                      1
-#define MODULATE_Y                      2
-#define MODULATE_Z                      4
-#define MODULATE_W                      8
-#define APPLY_SIN                       32
-#define APPLY_SQU                       64
-#define APPLY_TRI                       128
-#define OP_MULTIPLY                     256
-#define CLAMPING                     512
+#define MODULATE_X                      1 << 0
+#define MODULATE_Y                      1 << 1
+#define MODULATE_Z                      1 << 2
+#define MODULATE_W                      1 << 3
+#define APPLY_SIN                       1 << 4
+#define APPLY_SQU                       1 << 5
+#define APPLY_TRI                       1 << 6
+#define OP_MULTIPLY                     1 << 7
+#define CLAMPING                        1 << 8
+#define STORE_TO_F1                     1 << 9
+#define STORE_TO_F2                     1 << 10
+#define STORE_TO_F3                     1 << 11
 #define DO_MODULATE_X                   ((MODULATE_X & flags) > 0)
 #define DO_MODULATE_Y                   ((MODULATE_Y & flags) > 0)
 #define DO_MODULATE_Z                   ((MODULATE_Z & flags) > 0)
@@ -167,7 +181,11 @@ float squarewave_value(float cur_time, float period, float amplitude, float phas
 #define DO_SIN                          ((APPLY_SIN & flags) > 0)
 #define DO_SQU                          ((APPLY_SQU & flags) > 0)
 #define DO_TRI                          ((APPLY_TRI & flags) > 0)
-#define DO_CLAMP                    ((CLAMPING & flags) > 0)
+#define DO_CLAMP                        ((CLAMPING & flags) > 0)
+// store modulation outputs to pseudo float registers
+#define DO_STORE_TO_F1                  ((STORE_TO_F1 & flags) > 0)
+#define DO_STORE_TO_F2                  ((STORE_TO_F2 & flags) > 0)
+#define DO_STORE_TO_F3                  ((STORE_TO_F3 & flags) > 0)
 
 void errorVertex(vec3 pos1, vec3 pos2) {
     int sli = gl_VertexID % 30;
@@ -206,6 +224,15 @@ bool modulate_op(int flags, vec4 arg1, vec4 arg2, vec4 arg3) {
         modulation = squarewave_value(u_time, arg1.x, arg1.y, arg1.z, arg1.a, arg2.x);
     else if (DO_TRI)
         modulation = trianglewave_value(u_time, arg1.x, arg1.y, arg1.z, arg1.a);
+    if (DO_STORE_TO_F1) {
+        registered_values.f1 = modulation;
+    }
+    if (DO_STORE_TO_F2) {
+        registered_values.f2 = modulation;
+    }
+        if (DO_STORE_TO_F3) {
+        registered_values.f3 = modulation;
+    }
     if (DO_MODULATE_X) {
         if (DO_MULTIPLY) gl_Position.x *= modulation;
         else gl_Position.x += modulation;
@@ -251,6 +278,8 @@ void main() {
             }
             cont = modulate_op(fc.flags, fc.arg1, fc.arg2, fc.arg3);
             break;
+            case function_map.offset_coordinates:
+            cont = offset_coordinates(fc.flags, fc.arg1, fc.arg2, fc.arg3);
             case 0:
             cont = false;
             break;

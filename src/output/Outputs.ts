@@ -1,7 +1,7 @@
 import vs from "./Outputs.vert?raw";
 import fs from "./Outputs.frag?raw";
 import * as twgl from "twgl.js";
-import { Vector4 } from "../utils/baseTypes";
+import { LengthArray, Vector4 } from "../utils/baseTypes";
 import {
   LookMatricesHolder,
   getCamera,
@@ -12,6 +12,11 @@ import { AppState } from "../utils/appState";
 import { AllColors, pickRandomColor } from "../utils/colors";
 import { TransparentZero } from "../utils/colors";
 import { applyMixins } from "../utils/misc";
+import {
+  FunctionCall,
+  FunctionCallsArray,
+  MAX_CALLS_PER_PIPELINE,
+} from "../prims/FunctionCall";
 let outputInstance: Outputs | null = null;
 
 type valid_fb_non_null =
@@ -61,19 +66,23 @@ const DefaultOutputParameters: RenderParameters = {
 
 // const UNITY_QUAD = [-1, -1, -1, 1, 1, 1, 1, 1, -1, -1, 1, -1];
 const UNITY_QUAD = [
-//  -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, 1, -1, -1, -1, -1, 1, -1, -1,
-  -1, -1, 0, -1, 1, 0, 1, 1, 0, 1, 1, 0, -1, -1, 0, 1, -1, 0,
-
+  //  -1, -1, -1, -1, 1, -1, 1, 1, -1, 1, 1, -1, -1, -1, -1, 1, -1, -1,
+  [-1, -1, 0], // A
+  [-1, 1, 0], // B
+  [1, 1, 0], // C
+  [1, 1, 0], // C
+  [-1, -1, 0], // A
+  [1, -1, 0], // D
 ];
 
 const positionsArray: twgl.Arrays = {
   a_position: {
     numComponents: 3,
-    data: UNITY_QUAD,
+    data: UNITY_QUAD.flat(),
   },
   a_texcoord: {
     numComponents: 3,
-    data: UNITY_QUAD,
+    data: UNITY_QUAD.flat(),
   },
 };
 
@@ -84,13 +93,13 @@ class Outputs {
   outputCount: number;
   renderParams: RenderParameters;
   registeredObjects: Array<number>;
-  private programInfo: twgl.ProgramInfo;
-  private bufferInfo: twgl.BufferInfo;
+  private programInfoBuilder: () => twgl.ProgramInfo;
+  private bufferInfoBuilder: () => twgl.BufferInfo;
 
   private constructor(gl: WebGL2RenderingContext, params?: OutputParameters) {
     this.gl = gl;
-    this.programInfo = twgl.createProgramInfo(this.gl, [vs, fs]);
-    this.bufferInfo = twgl.createBufferInfoFromArrays(this.gl, positionsArray);
+    this.programInfoBuilder = () => { return twgl.createProgramInfo(this.gl, [vs, fs]) };
+    this.bufferInfoBuilder = () => { return twgl.createBufferInfoFromArrays(this.gl, positionsArray) };
     this.renderParams = Object.assign(
       {},
       DefaultOutputParameters,
@@ -100,8 +109,8 @@ class Outputs {
     this.outs = [];
     this.registeredObjects = [];
     for (let i = 0; i < 8; i++) {
-      const col1 = AllColors[i];
-      const col2 = AllColors[i];
+      const col1 = AllColors[i].toArray();
+      const col2 = AllColors[i].toArray();
       if (!this.createOutput(this.renderParams.showBorders, col1, col2)) {
         console.error(`Could not create framebuffer ${i}`);
       }
@@ -113,8 +122,8 @@ class Outputs {
 
   public createOutput = (
     displayBorders?: boolean,
-    xBorderColor?: Vector4,
-    yBorderColor?: Vector4
+    xBorderColor?: Array<number>,
+    yBorderColor?: Array<number>
   ): boolean => {
     if (this.outputCount >= MAX_SCREEN_COUNT) {
       return false;
@@ -122,15 +131,15 @@ class Outputs {
     let out = new BufferedOutput(
       this.gl,
       this.renderParams,
-      this.programInfo,
-      this.bufferInfo,
+      this.programInfoBuilder(),
+      this.bufferInfoBuilder(),
       this.outputCount as valid_fb_non_null
     );
     if (displayBorders === true) {
       out.xBorderColor = xBorderColor ?? out.xBorderColor;
       out.yBorderColor = yBorderColor ?? out.yBorderColor;
     } else {
-      out.xBorderColor = new Vector4(1, 0, 0, 0);
+      out.xBorderColor = new Array<number>(1, 0, 0, 0);
       out.yBorderColor = out.xBorderColor;
       // console.log("no borders")
     }
@@ -174,39 +183,113 @@ class Outputs {
 
   public render = (): void => {
     // first pass: render
-    for (let i = 0; i < this.outs.length; i++) {
-      if (this.registeredObjects[i] === 0) {
+    const directOuts = this.outs.filter((v: BufferedOutput) => {
+      return v.targetOutput === null;
+    });
+    const indirectOuts = this.outs.filter((v: BufferedOutput) => {
+      return v.targetOutput !== null;
+    });
+    // identify the right order for rendering outputs
+    let renderingOrder: valid_fb_non_null[] = [];
+
+    const insertO = (o: BufferedOutput): void => {
+      if (renderingOrder.includes(o.ndx)) {
+        return;
+      } else if (o.targetOutput === null && !renderingOrder.includes(o.ndx)) {
+        renderingOrder.push(o.ndx);
+      } else if (o.targetOutput !== null && !renderingOrder.includes(o.targetOutput)) {
+        // add the target output with insertO and then this one
+        insertO(this.outs[o.targetOutput]);
+        const tgtIdx = renderingOrder.indexOf(o.targetOutput);
+        renderingOrder.splice(tgtIdx, 0, o.ndx);
+      } else if (o.targetOutput !== null) {
+        const tgtIdx = renderingOrder.indexOf(o.targetOutput);
+        renderingOrder.splice(tgtIdx, 0, o.ndx);
+      } else {
+        console.log("heeee")
+      }
+    };
+    for (let o of this.outs) {
+      if (this.registeredObjects[o.ndx] === 0) {
         continue;
       }
-      this.outs[i].render();
+      insertO(o);
     }
+
+    for (const ndx of renderingOrder) {
+      const out = this.getOutput(ndx);
+      if (this.registeredObjects[ndx] === 0) {
+        continue;
+      }
+      if (!this.push(out.targetOutput)) {
+        throw new Error("Could not push target output");
+      }
+      out.render();
+      this.pop();
+    }
+    /* const renderOrder = [indirectOuts, directOuts];
+    let rendered: valid_fb_non_null[] = [];
+    const subren = (o: BufferedOutput): void => {
+      if (this.registeredObjects[o.ndx] === 0 || o.ndx in rendered) {
+        // do not render anything with no registered object
+        return;
+      }
+
+      if (!this.push(o.targetOutput)) {
+        throw Error("Could not push target output");
+      }
+      o.render();
+      rendered.push(o.ndx);
+      this.pop();
+    };
+    for (const ocol of renderOrder) {
+      for (let i = 0; i < ocol.length; i++) {
+        const o = ocol[i];
+        subren(o);
+      }
+    }*/
   };
 
   public wrapRender = (): void => {
     // second pass: clear
-    for (let outie of this.outs) {
-      if (this.push(outie.ndx)) {
-        const cc = outie.params.clearColor;
-        this.gl.clearColor(cc.x, cc.y, cc.z, cc.a);
-        this.gl.clear(
-          this.gl.COLOR_BUFFER_BIT |
-            this.gl.DEPTH_BUFFER_BIT |
-            this.gl.STENCIL_BUFFER_BIT
-        );
-        this.pop();
+    const directOuts = this.outs.filter((v: BufferedOutput) => {
+      return v.targetOutput === null;
+    });
+    const indirectOuts = this.outs.filter((v: BufferedOutput) => {
+      return v.targetOutput !== null;
+    });
+    // first, clear indirect outputs, then direct ons
+    for (let ocol of [directOuts, indirectOuts]) {
+      for (let outie of ocol) {
+        if (this.push(outie.ndx)) {
+          const cc = outie.params.clearColor;
+          this.gl.clearColor(cc.x, cc.y, cc.z, cc.a);
+          this.gl.clear(
+            this.gl.COLOR_BUFFER_BIT |
+              this.gl.DEPTH_BUFFER_BIT |
+              this.gl.STENCIL_BUFFER_BIT
+          );
+          this.pop();
+        }
       }
     }
   };
+
+  public getOutput = (n: valid_fb_non_null): BufferedOutput => {
+    return this.outs[n];
+  };
+
   public debug = (disable?: boolean): void => {
     if (!disable) {
-    for (let i = 0; i < this.outs.length; i++) {
-      if (this.push(i as valid_fb)) {
-        this.gl.clearColor(0, 0, 1, 0.1);
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
-        this.outs[i].setBorders(true);
-        this.pop();
+      for (let i = 0; i < this.outs.length; i++) {
+        if (this.push(i as valid_fb)) {
+          this.gl.clearColor(0, 0, 1, 0.1);
+          this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+          this.outs[i].setBorders(true);
+          this.pop();
+        }
       }
-    }} else {
+    } else {
       for (let outie of this.outs) {
         outie.setBorders(false);
       }
@@ -253,7 +336,7 @@ class Outputs {
   };
 }
 
-class BufferedOutput {
+class BufferedOutput implements OutputClient {
   gl: WebGL2RenderingContext;
   params: RenderParameters;
   framebuffer: twgl.FramebufferInfo;
@@ -264,8 +347,11 @@ class BufferedOutput {
   projectionMatrix: twgl.m4.Mat4;
   camHolder: LookMatricesHolder;
   u_model: twgl.m4.Mat4;
-  xBorderColor: Vector4;
-  yBorderColor: Vector4;
+  xBorderColor: Array<number>;
+  yBorderColor: Array<number>;
+  fsCalls: FunctionCallsArray;
+  vsCalls: FunctionCallsArray;
+  targetOutput: valid_fb;
 
   constructor(
     gl: WebGL2RenderingContext,
@@ -277,12 +363,23 @@ class BufferedOutput {
   ) {
     this.gl = gl;
     this.params = params;
-    this.framebuffer = twgl.createFramebufferInfo(this.gl);
+    const attachments = [
+      {
+        format: gl.RGBA,
+        type: gl.UNSIGNED_BYTE,
+        min: gl.LINEAR,
+        wrap: gl.CLAMP_TO_EDGE,
+      },
+      { format: gl.DEPTH_STENCIL },
+    ];
+    this.framebuffer = twgl.createFramebufferInfo(this.gl, attachments);
     this.programInfo = programInfo;
     this.bufferInfo = bufferInfo;
     this.ndx = ndx;
     this.u_model = twgl.m4.identity();
-
+    this.fsCalls = new FunctionCallsArray();
+    this.vsCalls = new FunctionCallsArray();
+    this.targetOutput = null;
     if (cameraName === undefined) {
       cameraName = "default";
     }
@@ -292,8 +389,45 @@ class BufferedOutput {
     this.camHolder = cam;
     this.cameraMatrix = cam.u_camera;
     this.projectionMatrix = cam.u_projection;
-    this.xBorderColor = new Vector4(0.3, 0.3, 0, 0.5);
-    this.yBorderColor = new Vector4(0.0, 0.3, 0.3, 0.5);
+    this.xBorderColor = new Array<number>(0.3, 0.3, 0, 0.5);
+    this.yBorderColor = new Array<number>(0.0, 0.3, 0.3, 0.5);
+  }
+
+  setOutput(n: valid_fb): void {
+    const mgr = Outputs.getOutputs(this.gl);
+    if (this.targetOutput !== null) {
+      mgr.unregisterOutput(this.targetOutput);
+    }
+    this.targetOutput = n;
+    if (n !== null) {
+      mgr.registerOutput(n);
+    }
+  }
+
+  private addCall(
+    tgt: "vs" | "fs",
+    f: FunctionCall,
+    position: number | undefined
+  ): boolean {
+    const target = tgt === "vs" ? this.vsCalls : this.fsCalls;
+    if (position && (position < 0 || position > 15)) {
+      throw Error("Incorrect position requested");
+    } else if (position) {
+      target[position] = f;
+    }
+    if (target.length > MAX_CALLS_PER_PIPELINE) {
+      console.error("Cannot add call to stack, too many");
+      return false;
+    }
+    target.push(f);
+    return true;
+  }
+
+  addVSCall(f: FunctionCall, position?: number): boolean {
+    return this.addCall("vs", f, position);
+  }
+  addFSCall(f: FunctionCall, position?: number): boolean {
+    return this.addCall("fs", f, position);
   }
 
   setCamera(cam: LookMatricesHolder): void {
@@ -301,13 +435,14 @@ class BufferedOutput {
     this.updateCamera();
   }
 
-  setBorders(v: boolean, color?: Vector4): void {
+  setBorders(v: boolean, color?: Array<number>): void {
     if (!v) {
-      this.xBorderColor = TransparentZero;
+      this.xBorderColor = TransparentZero.toArray();
     } else {
-      this.xBorderColor = color ?? pickRandomColor().alpha(0.9);
+      this.xBorderColor = color ?? pickRandomColor().toArray();
     }
     this.yBorderColor = this.xBorderColor;
+    console.log("Border color:", this.yBorderColor);
   }
   updateCamera(): void {
     this.cameraMatrix = this.camHolder.u_camera;
@@ -328,25 +463,76 @@ class BufferedOutput {
   public render = (): void => {
     this.updateCamera();
     let uniforms = {
-      u_texture: this.framebuffer.attachments[0],
+      u_backbuffer: this.framebuffer.attachments[0],
+      u_stencil: this.framebuffer.attachments[1],
       u_depth: this.ndx,
-      u_camera: this.cameraMatrix,
-      u_projection: this.projectionMatrix,
+      u_camera: this.camHolder.u_camera,
+      u_projection: this.camHolder.u_projection,
       u_aspectRatio: AppState.appHeight / AppState.appWidth,
       u_model: this.u_model,
-      u_xBorderColor: this.xBorderColor.toArray(),
-      u_yBorderColor: this.yBorderColor.toArray(),
+      u_xBorderColor: this.xBorderColor,
+      u_yBorderColor: this.yBorderColor,
+      f_frag_pipeline: this.fsCalls.toBasic(),
+      f_vert_pipeline: this.vsCalls.toBasic(),
+      u_outputId: this.ndx,
     };
+    // console.log(`${this.ndx}: ${this.framebuffer.attachments}`);
     this.gl.useProgram(this.programInfo.program);
+    
     twgl.setUniforms(this.programInfo, uniforms);
+
     twgl.setBuffersAndAttributes(this.gl, this.programInfo, this.bufferInfo);
+
     // simply render texture on a dual triangle quad
     twgl.drawBufferInfo(this.gl, this.bufferInfo, this.gl.TRIANGLES, 6, 0);
     // console.log("render", 2);
   };
 }
 
-interface BufferedOutput extends TransformablePrimitive {};
+type ChannelOffsetParameters = {
+  offsetDirection: LengthArray<number, 2>;
+  circular?: boolean;
+  moveAmount?: number;
+  multiplyMovement?: boolean;
+  substractOriginal?: boolean;
+  blendMode?: "ADD" | "MUL" | "SUB";
+  lossFactor?: number;
+  offsetChannels: {
+    r?: boolean;
+    g?: boolean;
+    b?: boolean;
+    a?: boolean;
+  };
+};
+
+const CHANNEL_OFFSET = 10;
+const addChannelOffsetToOutput = (
+  bo: BufferedOutput,
+  parm: ChannelOffsetParameters
+): boolean => {
+  const oc = parm.offsetChannels;
+  let fcall_frag: FunctionCall = new FunctionCall({
+    f_id: CHANNEL_OFFSET,
+    flags:
+      0 |
+      (oc.r ? 1 : 0) |
+      (oc.g ? 2 : 0) |
+      (oc.b ? 4 : 0) |
+      (oc.a ? 8 : 0) |
+      (parm.circular ? 16 : 0) |
+      (parm.multiplyMovement ? 32 : 0) |
+      (parm.substractOriginal ? 64 : 0) |
+      (parm.blendMode === "ADD" ? 128 : 0) |
+      (parm.blendMode === "SUB" ? 256 : 0) |
+      (parm.blendMode === "MUL" ? 512 : 0),
+    arg1: [...parm.offsetDirection, parm.moveAmount ?? 0.5, 0],
+    arg2: [parm.lossFactor ?? 0.8, 0, 0, 0],
+    arg3: [0, 0, 0, 0],
+  } as unknown as FunctionCall);
+  return bo.addFSCall(fcall_frag);
+};
+
+interface BufferedOutput extends TransformablePrimitive {}
 applyMixins(BufferedOutput, [TransformablePrimitive]);
-export { Outputs };
+export { Outputs, addChannelOffsetToOutput,CHANNEL_OFFSET };
 export type { valid_fb, valid_fb_non_null, OutputParameters, OutputClient };
